@@ -1,0 +1,13 @@
+bool lock_experiment
+string name
+string email
+
+bool unlock_experiment
+bool keep_alive
+string uid
+
+---
+
+bool result
+string uid
+string status
