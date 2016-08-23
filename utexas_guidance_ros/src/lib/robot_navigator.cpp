@@ -39,40 +39,26 @@ namespace bwi_guidance_solver {
 
       // TODO: Parametrize!
       controller_thread_frequency_ = 2.0f;
+
       avg_human_speed_ = 1.0f;
       avg_robot_speed_ = 0.5f;
 
-      // Read the graph from file.
-      std::string map_file, graph_file;
-      double robot_radius, robot_padding;
+      // Read the parameters from file and initialize the RNG.
+      std::string params_file;
       ros::NodeHandle private_nh("~");
-      if (!private_nh.getParam("map_file", map_file)) {
-        ROS_FATAL_STREAM("RobotPosition: ~map_file parameter required");
-        exit(-1);
-      }
-      if (!private_nh.getParam("graph_file", graph_file)) {
-        ROS_FATAL_STREAM("RobotPosition: ~graph_file parameter required");
+      if (!private_nh.getParam("params_file", params_file)) {
+        ROS_FATAL_STREAM("RobotPosition: ~params_file parameter required");
         exit(-1);
       }
 
-      // Setup map, graph and random number generator.
-      mapper_.reset(new bwi_mapper::MapLoader(map_file));
-      mapper_->getMapInfo(map_info_);
-      mapper_->getMap(map_);
-      mapper_->drawMap(base_image_);
-      bwi_mapper::readGraphFromFile(graph_file, map_info_, graph_);
+      YAML::Node params = YAML::LoadFile(params_);
+      planner_params_ = params["planner"];
+      model_params_ = params["model"];
+
       master_rng_.reset(new RNG(0));
-
-      // TODO just initialize the task generation model from scratch here.
-      task_generation_model_ = model;
-      motion_model_.reset(new MotionModel(graph_, avg_robot_speed_, avg_human_speed_));
-      human_decision_model_.reset(new HumanDecisionModel(graph_));
 
       human_location_available_ = false;
       human_location_subscriber_ = nh_->subscribe("person/pose", 1, &BaseRobotNavigator::humanLocationHandler, this);
-
-      cvStartWindowThread();
-      cv::namedWindow("out", cv::WINDOW_NORMAL);
 
     }
 
@@ -82,6 +68,8 @@ namespace bwi_guidance_solver {
 
     void BaseRobotNavigator::execute(const bwi_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal) {
       /* restricted mutex scope */ {
+
+        /**** TODO Initialize model and planner, parametrize planner somehow. */
         ROS_INFO_NAMED("BaseRobotNavigator", "Execute called!");
         boost::mutex::scoped_lock episode_modification_lock(episode_modification_mutex_);
         episode_completed_ = false;
@@ -90,7 +78,7 @@ namespace bwi_guidance_solver {
         at_episode_start_ = true;
         goal_node_id_ = goal->goal_node_id;
 
-        model_.reset(new RestrictedModel(graph_,
+        model_.reset(new utexas_guidance::GuidanceModel(model_params_graph_,
                                          map_,
                                          goal_node_id_,
                                          motion_model_,
@@ -149,7 +137,7 @@ namespace bwi_guidance_solver {
 
     void BaseRobotNavigator::start() {
 
-      // Setup variables/controllers for reach robot.
+      // Setup variables/controllers for each robot.
       int num_robots = available_robot_list_.size();
 
       robot_location_available_.resize(num_robots, false);
@@ -224,10 +212,10 @@ namespace bwi_guidance_solver {
 
       while(ros::ok()) {
 
-        ROS_WARN_STREAM("1");
         /* restricted_mutex_scope */ {
           boost::mutex::scoped_lock episode_modification_lock(episode_modification_mutex_);
 
+          /* ESTIMATE ROBOT LOCATIONS */
           bool all_robot_locations_available = true;
           // Let's see if we can update the position of all the robots first!
           for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
@@ -276,6 +264,7 @@ namespace bwi_guidance_solver {
               }
             }
           }
+          /* end ESTIMATE ROBOT LOCATIONS */
 
             ROS_WARN_STREAM("2");
 
@@ -283,7 +272,7 @@ namespace bwi_guidance_solver {
             bool its_decision_time = false;
             if (episode_in_progress_ && !terminate_episode_) {
               if (at_episode_start_) {
-                // Ensure that all robots switch to a scenario where they are no longer
+                // Ensure that all robots switch to a scenario where they are no longer showing anything.
                 bwi_guidance_msgs::UpdateGuidanceGui srv;
                 srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
                 for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
@@ -299,37 +288,37 @@ namespace bwi_guidance_solver {
                 system_state_.assist_type = NONE;
 
                 // Now figure out if we can assign a robot to the human's current location.
-                std::vector<Action> actions;
-                model_->getAllActions(system_state_, actions);
-                int colocated_robot_id = NONE;
-                for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
-                  const RobotState& rs = system_state_.robots[robot_idx];
-                  if (isRobotExactlyAt(rs, system_state_.loc_node)) {
-                    // We should assign this robot to
-                    ExtendedState temp_next_state;
-                    bool unused_terminal; /* The resulting state can never be terminal via a non WAIT action */
-                    float unused_reward_value;
-                    int unused_depth_count;
+                // std::vector<Action> actions;
+                // model_->getAllActions(system_state_, actions);
+                // int colocated_robot_id = NONE;
+                // for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
+                //   const RobotState& rs = system_state_.robots[robot_idx];
+                //   if (isRobotExactlyAt(rs, system_state_.loc_node)) {
+                //     // We should assign this robot to
+                //     ExtendedState temp_next_state;
+                //     bool unused_terminal; /* The resulting state can never be terminal via a non WAIT action */
+                //     float unused_reward_value;
+                //     int unused_depth_count;
 
-                    // Note that the RNG won't be used as it is a deterministic action.
-                    model_->takeAction(system_state_,
-                                       Action(ASSIGN_ROBOT, -1, system_state_.loc_node),
-                                       unused_reward_value,
-                                       temp_next_state,
-                                       unused_terminal,
-                                       unused_depth_count,
-                                       master_rng_);
-                    system_state_ = temp_next_state;
+                //     // Note that the RNG won't be used as it is a deterministic action.
+                //     model_->takeAction(system_state_,
+                //                        Action(ASSIGN_ROBOT, -1, system_state_.loc_node),
+                //                        unused_reward_value,
+                //                        temp_next_state,
+                //                        unused_terminal,
+                //                        unused_depth_count,
+                //                        master_rng_);
+                //     system_state_ = temp_next_state;
 
-                    robot_command_status_[robot_idx] = AT_HELP_DESTINATION_LOCATION;
-                    colocated_robot_id = robot_idx;
-                    break;
-                  }
-                }
+                //     robot_command_status_[robot_idx] = AT_HELP_DESTINATION_LOCATION;
+                //     colocated_robot_id = robot_idx;
+                //     break;
+                //   }
+                // }
 
-                system_state_.prev_action = WAIT;
-                system_state_.released_locations.clear();
-                wait_action_next_states_.clear();
+                // system_state_.prev_action = WAIT;
+                // system_state_.released_locations.clear();
+                // wait_action_next_states_.clear();
 
                 ROS_INFO_STREAM_NAMED("base_robot_navigator", "System state at start determined: " << system_state_);
 
@@ -342,7 +331,7 @@ namespace bwi_guidance_solver {
                 // TODO this should probably not be a blocking call.
                 mcts_search_start_state_ = system_state_;
                 mcts_->restart();
-                compute(5.0f);
+                compute(10.0f);
 
                 if (colocated_robot_id != NONE) {
                   bwi_guidance_msgs::UpdateGuidanceGui srv;
