@@ -10,21 +10,16 @@
 #include <opencv/highgui.h>
 #include <tf/transform_datatypes.h>
 
-#include <bwi_guidance_msgs/UpdateGuidanceGui.h>
-#include <bwi_guidance_solver/mrn/abstract_mapping.h>
-#include <bwi_guidance_solver/mrn/base_robot_navigator.h>
-#include <bwi_guidance_solver/mrn/single_robot_solver.h>
-#include <bwi_rl/planning/ModelUpdaterSingle.h>
+#include <utexas_guidance_msgs/UpdateGuidanceGui.h>
+#include <utexas_guidance_ros/robot_navigator.h>
 
 #include <opencv/highgui.h>
 
-namespace bwi_guidance_solver {
+namespace utexas_guidance {
 
-  namespace mrn {
-
-    BaseRobotNavigator::BaseRobotNavigator(const boost::shared_ptr<ros::NodeHandle>& nh,
-                                           const std::vector<std::string>& available_robot_list,
-                                           const boost::shared_ptr<TaskGenerationModel>& model) {
+  RobotNavigator::RobotNavigator(const boost::shared_ptr<ros::NodeHandle>& nh,
+                                 const std::vector<std::string>& available_robot_list,
+                                 const boost::shared_ptr<TaskGenerationModel>& model) {
 
       nh_ = nh;
 
@@ -44,51 +39,41 @@ namespace bwi_guidance_solver {
       avg_robot_speed_ = 0.5f;
 
       // Read the parameters from file and initialize the RNG.
-      std::string params_file;
+      std::string experiment_file;
       ros::NodeHandle private_nh("~");
-      if (!private_nh.getParam("params_file", params_file)) {
-        ROS_FATAL_STREAM("RobotPosition: ~params_file parameter required");
+      if (!private_nh.getParam("experiment_file", experiment_file)) {
+        ROS_FATAL_STREAM("RobotPosition: ~experiment_file parameter required");
         exit(-1);
       }
 
-      YAML::Node params = YAML::LoadFile(params_);
+      YAML::Node params = YAML::LoadFile(experiment_file_);
+      model_params_ = params["model"][0];
       planner_params_ = params["planner"];
-      model_params_ = params["model"];
 
       master_rng_.reset(new RNG(0));
 
       human_location_available_ = false;
-      human_location_subscriber_ = nh_->subscribe("person/pose", 1, &BaseRobotNavigator::humanLocationHandler, this);
+      human_location_subscriber_ = nh_->subscribe("person/pose", 1, &RobotNavigator::humanLocationHandler, this);
+      
+      model_.reset(new utexas_guidance::GuidanceModel);
+      model_->init(model_params_, "", master_rng_);
 
-    }
-
-    BaseRobotNavigator::~BaseRobotNavigator() {
-      // TODO join the controller thread here if initialized?
-    }
-
-    void BaseRobotNavigator::execute(const bwi_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal) {
+      /* Create all the models and the solvers here. */
       /* restricted mutex scope */ {
 
         /**** TODO Initialize model and planner, parametrize planner somehow. */
-        ROS_INFO_NAMED("BaseRobotNavigator", "Execute called!");
-        boost::mutex::scoped_lock episode_modification_lock(episode_modification_mutex_);
-        episode_completed_ = false;
-        terminate_episode_ = false;
-        episode_in_progress_ = true;
-        at_episode_start_ = true;
-        goal_node_id_ = goal->goal_node_id;
-
+        ROS_INFO_NAMED("RobotNavigator", "Execute called!");
         model_.reset(new utexas_guidance::GuidanceModel(model_params_graph_,
-                                         map_,
-                                         goal_node_id_,
-                                         motion_model_,
-                                         human_decision_model_,
-                                         task_generation_model_,
-                                         RestrictedModel::Params()));
+                                                        map_,
+                                                        goal_node_id_,
+                                                        motion_model_,
+                                                        human_decision_model_,
+                                                        task_generation_model_,
+                                                        RestrictedModel::Params()));
 
-        boost::shared_ptr<ModelUpdaterSingle<ExtendedState, Action> >
-          mcts_model_updator(new ModelUpdaterSingle<ExtendedState, Action>(model_));
-        boost::shared_ptr<StateMapping<ExtendedState> > mcts_state_mapping;
+        boost::shared_ptr<ModelUpdaterSingle<utexas_guidance::State, Action> >
+          mcts_model_updator(new ModelUpdaterSingle<utexas_guidance::State, Action>(model_));
+        boost::shared_ptr<StateMapping<utexas_guidance::State> > mcts_state_mapping;
         mcts_state_mapping.reset(new AbstractMapping);
 
         boost::shared_ptr<SingleRobotSolver> default_policy;
@@ -101,41 +86,24 @@ namespace bwi_guidance_solver {
         Domain::Params domain_params;
         default_policy->initialize(domain_params, empty_json, map_, graph_, empty_robot_home_base, base_directory);
         default_policy->reset(0, goal_node_id_);
-        MultiThreadedMCTS<ExtendedState, ExtendedStateHash, Action>::Params mcts_params;
+        MultiThreadedMCTS<utexas_guidance::State, ExtendedStateHash, Action>::Params mcts_params;
         mcts_params.numThreads = 4;
 
-        mcts_.reset(new MultiThreadedMCTS<ExtendedState, ExtendedStateHash, Action>(default_policy,
+        mcts_.reset(new MultiThreadedMCTS<utexas_guidance::State, ExtendedStateHash, Action>(default_policy,
                                                                                     mcts_model_updator,
                                                                                     mcts_state_mapping,
                                                                                     master_rng_,
                                                                                     mcts_params));
 
-        ROS_INFO_NAMED("BaseRobotNavigator", "Execute ended!");
+        ROS_INFO_NAMED("RobotNavigator", "Execute ended!");
       }
-
-      while (ros::ok()) {
-        /* restricted mutex scope */ {
-          boost::mutex::scoped_lock episode_modification_lock(episode_modification_mutex_);
-          if (as_->isPreemptRequested()) {
-            terminate_episode_ = true;
-            as_->setAborted();
-            break;
-          }
-          if (episode_completed_) {
-            as_->setSucceeded();
-            break;
-          }
-        }
-        boost::this_thread::sleep(boost::posix_time::milliseconds(100));
-      }
-
     }
 
-    void BaseRobotNavigator::humanLocationHandler(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &human_pose) {
-      human_location_ = human_pose->pose.pose;
+    RobotNavigator::~RobotNavigator() {
+      // TODO join the controller thread here if initialized?
     }
 
-    void BaseRobotNavigator::start() {
+    void RobotNavigator::start() {
 
       // Setup variables/controllers for each robot.
       int num_robots = available_robot_list_.size();
@@ -154,7 +122,7 @@ namespace bwi_guidance_solver {
         const std::string &robot_name = available_robot_list_[i];
 
         // Add a controller for this robot.
-        ROS_INFO_STREAM_NAMED("BaseRobotNavigator", "Waiting for action server for robot: " << robot_name);
+        ROS_INFO_STREAM_NAMED("RobotNavigator", "Waiting for action server for robot: " << robot_name);
         boost::shared_ptr<actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction> > ac;
         ac.reset(new actionlib::SimpleActionClient<move_base_msgs::MoveBaseAction>("/" + robot_name + "/move_base_interruptable", true));
         ac->waitForServer();
@@ -162,12 +130,12 @@ namespace bwi_guidance_solver {
 
         boost::shared_ptr<ros::Subscriber> loc_sub(new ros::Subscriber);
         *loc_sub = nh_->subscribe<geometry_msgs::PoseWithCovarianceStamped>("/" + robot_name + "/amcl_pose", 1,
-                                                                            boost::bind(&BaseRobotNavigator::robotLocationHandler,
+                                                                            boost::bind(&RobotNavigator::robotLocationHandler,
                                                                                         this, _1, i));
         robot_location_subscriber_.push_back(loc_sub);
 
         boost::shared_ptr<ros::ServiceClient> gui_client(new ros::ServiceClient);
-        *gui_client = nh_->serviceClient<bwi_guidance_msgs::UpdateGuidanceGui>("/" + robot_name + "/update_gui");
+        *gui_client = nh_->serviceClient<utexas_guidance_msgs::UpdateGuidanceGui>("/" + robot_name + "/update_gui");
         robot_gui_controller_.push_back(gui_client);
 
         // Finally get a new task for this robot and setup the system state for this robot.
@@ -187,28 +155,63 @@ namespace bwi_guidance_solver {
       }
 
       // Now that all robots are initialized, start the controller thread.
-      controller_thread_.reset(new boost::thread(&BaseRobotNavigator::runControllerThread, this));
+      controller_thread_.reset(new boost::thread(&RobotNavigator::runControllerThread, this));
 
-      as_.reset(new actionlib::SimpleActionServer<bwi_guidance_msgs::MultiRobotNavigationAction>(*nh_,
+      as_.reset(new actionlib::SimpleActionServer<utexas_guidance_msgs::MultiRobotNavigationAction>(*nh_,
                                                                                                  "/guidance",
-                                                                                                 boost::bind(&BaseRobotNavigator::execute, this, _1),
+                                                                                                 boost::bind(&RobotNavigator::execute, this, _1),
                                                                                                  false));
 
       as_->start();
       ros::spin();
     }
 
-    void BaseRobotNavigator::robotLocationHandler(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &robot_pose,
+    void RobotNavigator::execute(const utexas_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal) {
+
+      episode_modification_mutex_.acquire();
+      episode_completed_ = false;
+      terminate_episode_ = false;
+      episode_in_progress_ = true;
+      at_episode_start_ = true;
+      goal_node_id_ = goal->goal_node_id;
+      human_location_available_ = false;
+
+      episode_modification_mutex_.release();
+
+      /* TODO Instantiate the solver based on the alias requested in the goal request. */
+
+      while (ros::ok()) {
+        episode_modification_mutex_.acquire();
+        if (as_->isPreemptRequested()) {
+          terminate_episode_ = true;
+          as_->setAborted();
+          break;
+        }
+        if (episode_completed_) {
+          as_->setSucceeded();
+          break;
+        }
+        episode_modification_mutex_.release();
+        boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+      }
+
+    }
+
+    void RobotNavigator::humanLocationHandler(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &human_pose) {
+      human_location_available_ = true;
+      human_location_ = human_pose->pose.pose;
+    }
+
+    void RobotNavigator::robotLocationHandler(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr &robot_pose,
                                                   int robot_idx) {
       boost::mutex::scoped_lock lock(*(robot_location_mutex_[robot_idx]));
       robot_location_[robot_idx] = robot_pose->pose.pose;
       robot_location_available_[robot_idx] = true;
     }
 
+    void RobotNavigator::runControllerThread() {
 
-    void BaseRobotNavigator::runControllerThread() {
-
-      ROS_INFO_NAMED("BaseRobotNavigator", "Starting up...");
+      ROS_INFO_NAMED("RobotNavigator", "Starting up...");
 
       while(ros::ok()) {
 
@@ -239,8 +242,8 @@ namespace bwi_guidance_solver {
                 } else if (robot_command_status_[robot_idx] == GOING_TO_SERVICE_TASK_LOCATION) {
                   robot_command_status_[robot_idx] = AT_SERVICE_TASK_LOCATION;
                   if (!episode_in_progress_) {
-                    bwi_guidance_msgs::UpdateGuidanceGui srv;
-                    srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START;
+                    utexas_guidance_msgs::UpdateGuidanceGui srv;
+                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START;
                     robot_gui_controller_[robot_idx]->call(srv);
                   }
                 }
@@ -273,8 +276,8 @@ namespace bwi_guidance_solver {
             if (episode_in_progress_ && !terminate_episode_) {
               if (at_episode_start_) {
                 // Ensure that all robots switch to a scenario where they are no longer showing anything.
-                bwi_guidance_msgs::UpdateGuidanceGui srv;
-                srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+                utexas_guidance_msgs::UpdateGuidanceGui srv;
+                srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
                 for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
                   robot_gui_controller_[robot_idx]->call(srv);
                 }
@@ -295,7 +298,7 @@ namespace bwi_guidance_solver {
                 //   const RobotState& rs = system_state_.robots[robot_idx];
                 //   if (isRobotExactlyAt(rs, system_state_.loc_node)) {
                 //     // We should assign this robot to
-                //     ExtendedState temp_next_state;
+                //     utexas_guidance::State temp_next_state;
                 //     bool unused_terminal; /* The resulting state can never be terminal via a non WAIT action */
                 //     float unused_reward_value;
                 //     int unused_depth_count;
@@ -323,8 +326,8 @@ namespace bwi_guidance_solver {
                 ROS_INFO_STREAM_NAMED("base_robot_navigator", "System state at start determined: " << system_state_);
 
                 if (colocated_robot_id != NONE) {
-                  bwi_guidance_msgs::UpdateGuidanceGui srv;
-                  srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT;
+                  utexas_guidance_msgs::UpdateGuidanceGui srv;
+                  srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT;
                   robot_gui_controller_[colocated_robot_id]->call(srv);
                 }
 
@@ -334,8 +337,8 @@ namespace bwi_guidance_solver {
                 compute(10.0f);
 
                 if (colocated_robot_id != NONE) {
-                  bwi_guidance_msgs::UpdateGuidanceGui srv;
-                  srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+                  utexas_guidance_msgs::UpdateGuidanceGui srv;
+                  srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
                   robot_gui_controller_[colocated_robot_id]->call(srv);
                 }
 
@@ -356,8 +359,8 @@ namespace bwi_guidance_solver {
                     if (human_robot_distance <= 2.0f) {
                       next_loc = system_state_.prev_action.node;
                       // Clear the previous robot's GUI.
-                      bwi_guidance_msgs::UpdateGuidanceGui srv;
-                      srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+                      utexas_guidance_msgs::UpdateGuidanceGui srv;
+                      srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
                       robot_gui_controller_[system_state_.prev_action.robot_id]->call(srv);
                     }
                   }
@@ -408,20 +411,20 @@ namespace bwi_guidance_solver {
                   // See if the action requires some interaction with the GUI.
                   if (action.type == DIRECT_PERSON) {
                     pause_robot_ = action.robot_id;
-                    bwi_guidance_msgs::UpdateGuidanceGui srv;
-                    srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION;
+                    utexas_guidance_msgs::UpdateGuidanceGui srv;
+                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION;
                     bwi_mapper::Point2f ori_dest_pt = getLocationFromGraphId(action.node);
                     srv.request.orientation_destination.position.x = ori_dest_pt.x;
                     srv.request.orientation_destination.position.y = ori_dest_pt.y;
                     robot_gui_controller_[action.robot_id]->call(srv);
                   } else if (action.type == LEAD_PERSON) {
-                    bwi_guidance_msgs::UpdateGuidanceGui srv;
-                    srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
+                    utexas_guidance_msgs::UpdateGuidanceGui srv;
+                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
                     robot_gui_controller_[action.robot_id]->call(srv);
                     robot_command_status_[action.robot_id] = SERVICE_TASK_NAVIGATION_RESET;
                   }
                   // Perform the deterministic transition as per the model
-                  ExtendedState next_state;
+                  utexas_guidance::State next_state;
                   bool unused_terminal; /* The resulting state can never be terminal via a non WAIT action */
                   float unused_reward_value;
                   int unused_depth_count;
@@ -446,7 +449,7 @@ namespace bwi_guidance_solver {
                   wait_action_next_states_.clear();
                   for (int i = 0; i < 100; ++i) {
                     // Perform the deterministic transition as per the model
-                    ExtendedState next_state;
+                    utexas_guidance::State next_state;
                     bool unused_terminal; /* The resulting state can never be terminal via a non WAIT action */
                     float unused_reward_value;
                     int unused_depth_count;
@@ -454,7 +457,7 @@ namespace bwi_guidance_solver {
                     wait_action_next_states_.insert(next_state);
                   }
                   ROS_WARN_STREAM("Expecting the following possible next states after wait action: ");
-                  BOOST_FOREACH(const ExtendedState& ns, wait_action_next_states_) {
+                  BOOST_FOREACH(const utexas_guidance::State& ns, wait_action_next_states_) {
                     ROS_WARN_STREAM("  " << ns);
                   }
                   wait_action_start_time_ = boost::posix_time::microsec_clock::local_time();
@@ -471,13 +474,13 @@ namespace bwi_guidance_solver {
               if (robot_command_status_[robot_idx] == INITIALIZED) {
                 robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
                 if (!episode_in_progress_) {
-                  bwi_guidance_msgs::UpdateGuidanceGui srv;
-                  srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
+                  utexas_guidance_msgs::UpdateGuidanceGui srv;
+                  srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
                   robot_gui_controller_[robot_idx]->call(srv);
                 }
               } else if (robot_command_status_[robot_idx] == AT_SERVICE_TASK_LOCATION) {
                 if (rs.tau_t == 0.0f) {
-                  ROS_DEBUG_STREAM_NAMED("BaseRobotNavigator", available_robot_list_[robot_idx] << " reached service task location.");
+                  ROS_DEBUG_STREAM_NAMED("RobotNavigator", available_robot_list_[robot_idx] << " reached service task location.");
                   rs.tau_t = 1.0f / controller_thread_frequency_;
                   // The second term tries to average for discretization errors. TODO think about this some more when
                   // not sleepy.
@@ -487,15 +490,15 @@ namespace bwi_guidance_solver {
                   boost::posix_time::time_duration diff =
                     boost::posix_time::microsec_clock::local_time() - robot_service_task_start_time_[robot_idx];
                   rs.tau_t = diff.total_milliseconds() / 1000.0f;
-                  ROS_DEBUG_STREAM_NAMED("BaseRobotNavigator", available_robot_list_[robot_idx] << " has been at service task location for " << rs.tau_t << " seconds.");
+                  ROS_DEBUG_STREAM_NAMED("RobotNavigator", available_robot_list_[robot_idx] << " has been at service task location for " << rs.tau_t << " seconds.");
                 }
                 if (rs.tau_t > rs.tau_total_task_time) {
                   // This service task is now complete. Get a new task.
                   getNextTaskForRobot(robot_idx, rs);
                   robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
                   if (!episode_in_progress_) {
-                    bwi_guidance_msgs::UpdateGuidanceGui srv;
-                    srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
+                    utexas_guidance_msgs::UpdateGuidanceGui srv;
+                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
                     robot_gui_controller_[robot_idx]->call(srv);
                   }
                 }
@@ -507,8 +510,8 @@ namespace bwi_guidance_solver {
                   boost::posix_time::microsec_clock::local_time() - wait_action_start_time_;
                 if (time_since_wait_start.total_milliseconds() > 3000) {
                   pause_robot_ = NONE;
-                  bwi_guidance_msgs::UpdateGuidanceGui srv;
-                  srv.request.type = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+                  utexas_guidance_msgs::UpdateGuidanceGui srv;
+                  srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
                   robot_gui_controller_[robot_idx]->call(srv);
                 }
               } else {
@@ -548,13 +551,13 @@ namespace bwi_guidance_solver {
       }
     }
 
-    void BaseRobotNavigator::publishCurrentSystemState() {
+    void RobotNavigator::publishCurrentSystemState() {
       cv::Mat img = base_image_.clone();
       model_->drawState(system_state_, img);
       cv::imshow("out", img);
     }
 
-    void BaseRobotNavigator::sendRobotToDestination(int robot_idx, int destination, float orientation) {
+    void RobotNavigator::sendRobotToDestination(int robot_idx, int destination, float orientation) {
       bwi_mapper::Point2f dest = getLocationFromGraphId(destination);
       move_base_msgs::MoveBaseGoal goal;
       geometry_msgs::PoseStamped &target_pose = goal.target_pose;
@@ -568,12 +571,12 @@ namespace bwi_guidance_solver {
       robot_controller_[robot_idx]->sendGoal(goal);
     }
 
-    bwi_mapper::Point2f BaseRobotNavigator::getLocationFromGraphId(int destination) {
+    bwi_mapper::Point2f RobotNavigator::getLocationFromGraphId(int destination) {
       bwi_mapper::Point2f dest = bwi_mapper::getLocationFromGraphId(destination, graph_);
       return bwi_mapper::toMap(dest, map_.info);
     }
 
-    void BaseRobotNavigator::determineHumanTransitionalLocation(const geometry_msgs::Pose &pose,
+    void RobotNavigator::determineHumanTransitionalLocation(const geometry_msgs::Pose &pose,
                                                                 int current_loc,
                                                                 int& next_loc) {
       bwi_mapper::Point2f human_pt(pose.position.x, pose.position.y);
@@ -590,7 +593,7 @@ namespace bwi_guidance_solver {
       }
     }
 
-    void BaseRobotNavigator::determineStartLocation(const geometry_msgs::Pose &pose, int &u, int &v, float &p) {
+    void RobotNavigator::determineStartLocation(const geometry_msgs::Pose &pose, int &u, int &v, float &p) {
       bwi_mapper::Point2f pt(pose.position.x, pose.position.y);
       bwi_mapper::Point2f pt_grid = bwi_mapper::toGrid(pt, map_.info);
       u = bwi_mapper::getClosestIdOnGraph(pt_grid, graph_);
@@ -600,13 +603,13 @@ namespace bwi_guidance_solver {
       p = bwi_mapper::getMagnitude(pt - u_loc) / (bwi_mapper::getMagnitude(pt - u_loc) + bwi_mapper::getMagnitude(pt - v_loc));
     }
 
-    void BaseRobotNavigator::determineStartLocation(const geometry_msgs::Pose &pose, int &u) {
+    void RobotNavigator::determineStartLocation(const geometry_msgs::Pose &pose, int &u) {
       bwi_mapper::Point2f pt(pose.position.x, pose.position.y);
       bwi_mapper::Point2f pt_grid = bwi_mapper::toGrid(pt, map_.info);
       u = bwi_mapper::getClosestIdOnGraph(pt_grid, graph_);
     }
 
-    void BaseRobotNavigator::determineRobotTransitionalLocation(const geometry_msgs::Pose &pose, RobotState &rs) {
+    void RobotNavigator::determineRobotTransitionalLocation(const geometry_msgs::Pose &pose, RobotState &rs) {
       // Change loc_v everytime, but keep loc_u constant.
       bwi_mapper::Point2f pt(pose.position.x, pose.position.y);
       bwi_mapper::Point2f pt_grid = bwi_mapper::toGrid(pt, map_.info);
@@ -624,7 +627,7 @@ namespace bwi_guidance_solver {
       }
     }
 
-    void BaseRobotNavigator::roundOffRobotLocation(RobotState &rs) {
+    void RobotNavigator::roundOffRobotLocation(RobotState &rs) {
       if (rs.loc_p >= 0.5f) {
         rs.loc_p = 0.0f;
         int temp = rs.loc_v;
@@ -636,15 +639,16 @@ namespace bwi_guidance_solver {
       }
     }
 
-    Action BaseRobotNavigator::getBestAction() {
-      ExtendedState ask_state = system_state_;
+    Action RobotNavigator::getBestAction() {
+
+      utexas_guidance::State ask_state = system_state_;
       if (wait_action_next_states_.size() != 0) {
         // Look through all possible next states and figure out positionally which one we are closest to. Then set
         // the robot locations to that one as long as that does not change the current action set.
         std::vector<Action> current_state_actions;
         model_->getAllActions(system_state_, current_state_actions);
-        std::set<ExtendedState> candidates;
-        BOOST_FOREACH(const ExtendedState& next_state, wait_action_next_states_) {
+        std::set<utexas_guidance::State> candidates;
+        BOOST_FOREACH(const utexas_guidance::State& next_state, wait_action_next_states_) {
           if (next_state.loc_node == system_state_.loc_node) {
             candidates.insert(next_state);
           }
@@ -654,8 +658,8 @@ namespace bwi_guidance_solver {
 
         // TODO you could still probably do this better!
         // Make sure that changing robot values won't change the set of actions.
-        BOOST_FOREACH(const ExtendedState& next_state, candidates) {
-          ExtendedState temp_state = ask_state;
+        BOOST_FOREACH(const utexas_guidance::State& next_state, candidates) {
+          utexas_guidance::State temp_state = ask_state;
           for (int robot_idx = 0; robot_idx < next_state.robots.size(); ++robot_idx) {
             temp_state.robots[robot_idx].loc_u =
               next_state.robots[robot_idx].loc_u;
@@ -688,11 +692,11 @@ namespace bwi_guidance_solver {
       return mcts_->selectWorldAction(ask_state);
     }
 
-    void BaseRobotNavigator::getNextTaskForRobot(int robot_id, RobotState &rs) {
+    void RobotNavigator::getNextTaskForRobot(int robot_id, RobotState &rs) {
       task_generation_model_->generateNewTaskForRobot(robot_id, rs, *master_rng_);
     }
 
-    void BaseRobotNavigator::compute(float timeout, bool first_action_wait) {
+    void RobotNavigator::compute(float timeout, bool first_action_wait) {
       unsigned int unused_rollout_termination_count;
       if (!first_action_wait) {
         mcts_->search(mcts_search_start_state_, unused_rollout_termination_count, timeout);
@@ -701,6 +705,4 @@ namespace bwi_guidance_solver {
       }
     }
 
-  } /* mrn */
-
-} /* bwi_guidance_solver */
+} /* utexas_guidance */

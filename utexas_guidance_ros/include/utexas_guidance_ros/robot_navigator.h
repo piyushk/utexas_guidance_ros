@@ -14,9 +14,9 @@
 #include <std_srvs/Empty.h>
 
 #include <bwi_msgs/AvailableRobotArray.h>
-#include <bwi_guidance_msgs/ExperimentStatus.h>
-#include <bwi_guidance_msgs/MultiRobotNavigationAction.h>
-#include <utexas_guidance_ros/mrn/guidance_model.h>
+#include <utexas_guidance_msgs/ExperimentStatus.h>
+#include <utexas_guidance_msgs/MultiRobotNavigationAction.h>
+#include <utexas_guidance/mdp/guidance_model.h>
 
 namespace utexas_guidance_ros {
 
@@ -78,7 +78,7 @@ namespace utexas_guidance_ros {
       cv::Mat base_image_;
       void publishCurrentSystemState();
 
-      void execute(const bwi_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal);
+      void execute(const utexas_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal);
       void sendRobotToDestination(int robot_idx, int destination, float orientation = 0.0f);
       void determineHumanTransitionalLocation(const geometry_msgs::Pose &pose, int current_loc, int &next_loc);
       void determineStartLocation(const geometry_msgs::Pose &pose, int &u, int &v, float &p);
@@ -88,11 +88,11 @@ namespace utexas_guidance_ros {
 
       /* bwi_mapper::Point2f getLocationFromGraphId(int destination); */
 
-      ExtendedState system_state_;
+      State system_state_;
       boost::mutex episode_modification_mutex_;
 
       boost::shared_ptr<ros::NodeHandle> nh_;
-      boost::shared_ptr<actionlib::SimpleActionServer<bwi_guidance_msgs::MultiRobotNavigationAction> > as_;
+      boost::shared_ptr<actionlib::SimpleActionServer<utexas_guidance_msgs::MultiRobotNavigationAction> > as_;
 
       bool episode_in_progress_;
       bool episode_completed_;
@@ -101,9 +101,9 @@ namespace utexas_guidance_ros {
 
       int goal_node_id_;
       int pause_robot_;
-      ExtendedState mcts_search_start_state_;
+      State mcts_search_start_state_;
       boost::posix_time::ptime wait_action_start_time_;
-      std::set<ExtendedState> wait_action_next_states_;
+      std::set<State> wait_action_next_states_;
 
       boost::shared_ptr<boost::thread> controller_thread_;
       void runControllerThread();
@@ -117,7 +117,7 @@ namespace utexas_guidance_ros {
       nav_msgs::OccupancyGrid map_;
       nav_msgs::MapMetaData map_info_;
 
-      boost::shared_ptr<GuidanceModel> model_;
+      boost::shared_ptr<utexas_guidance::GuidanceModel> model_;
       boost::shared_ptr<RNG> master_rng_;
 
   };
