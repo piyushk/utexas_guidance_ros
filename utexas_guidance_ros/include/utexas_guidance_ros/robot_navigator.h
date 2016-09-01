@@ -65,30 +65,30 @@ namespace utexas_guidance_ros {
       std::vector<bool> robot_offered_help_;
       std::vector<boost::posix_time::ptime> robot_offered_help_start_time_;
       /* Once WAIT is returned, clean the MCTS state - DOWNSTREAM! */
-      Action getBestAction();
+      utexas_guidance::Action getBestAction();
 
       /* void getNextTaskForRobot(int robot_id, RobotState &rs); */
-
-      // This is a step of time during WAIT where UCT can do its things. The timeout is based on the frequency of the
-      // controller thread minus the processing time required by that thread.
-      virtual void compute(float timeout, bool first_action_wait = false);
 
     protected:
 
       cv::Mat base_image_;
-      void publishCurrentSystemState();
 
       void execute(const utexas_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal);
       void sendRobotToDestination(int robot_idx, int destination, float orientation = 0.0f);
       void determineHumanTransitionalLocation(const geometry_msgs::Pose &pose, int current_loc, int &next_loc);
       void determineStartLocation(const geometry_msgs::Pose &pose, int &u, int &v, float &p);
       void determineStartLocation(const geometry_msgs::Pose &pose, int &u);
-      void determineRobotTransitionalLocation(const geometry_msgs::Pose &pose, RobotState &rs);
-      void roundOffRobotLocation(RobotState &rs);
+      void determineRobotTransitionalLocation(const geometry_msgs::Pose &pose, utexas_guidance::RobotState &rs);
+      void roundOffRobotLocation(utexas_guidance::RobotState &rs);
 
+                takeAction(system_state_, 
+                           action, 
+                           next_state, 
+                           master_rng_);
+      getAllActions(system_state_, current_state_actions);
       /* bwi_mapper::Point2f getLocationFromGraphId(int destination); */
 
-      State system_state_;
+      utexas_guidance::State system_state_;
       boost::mutex episode_modification_mutex_;
 
       boost::shared_ptr<ros::NodeHandle> nh_;
@@ -101,23 +101,21 @@ namespace utexas_guidance_ros {
 
       int goal_node_id_;
       int pause_robot_;
-      State mcts_search_start_state_;
+
+      /* TODO: This may have become unnecessary. */
+      utexas_guidance::State mcts_search_start_state_;
       boost::posix_time::ptime wait_action_start_time_;
-      std::set<State> wait_action_next_states_;
+      std::set<utexas_guidance::State> wait_action_next_states_;
 
       boost::shared_ptr<boost::thread> controller_thread_;
       void runControllerThread();
       float controller_thread_frequency_;
 
-      float avg_robot_speed_;
-      float avg_human_speed_;
-
-      boost::shared_ptr<bwi_mapper::MapLoader> mapper_;
-      bwi_mapper::Graph graph_;
-      nav_msgs::OccupancyGrid map_;
-      nav_msgs::MapMetaData map_info_;
-
-      boost::shared_ptr<utexas_guidance::GuidanceModel> model_;
+      YAML::Node model_params_;
+      YAML::Node planner_params_;
+      utexas_guidance::Graph graph_;
+      utexas_guidance::GuidanceModel::Ptr model_;
+      utexas_planning::AbstractSolver::Ptr solver_;
       boost::shared_ptr<RNG> master_rng_;
 
   };

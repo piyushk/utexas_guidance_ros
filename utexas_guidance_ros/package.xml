@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<package>
+<package format="2">
   <name>utexas_guidance_ros</name>
   <version>0.0.0</version>
   <description>The utexas_guidance_ros package</description>
@@ -27,6 +27,7 @@
   <!-- Example: -->
   <!-- <author email="jane.doe@example.com">Jane Doe</author> -->
 
+  <depend>utexas_guidance</depend>
 
   <!-- The *_depend tags are used to specify dependencies -->
   <!-- Dependencies can be catkin packages or system dependencies -->

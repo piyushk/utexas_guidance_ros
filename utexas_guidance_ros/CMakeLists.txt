@@ -7,8 +7,15 @@ project(utexas_guidance_ros)
 find_package(catkin REQUIRED)
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(UTEXAS_PLANNING REQUIRED utexas_planning)
+include_directories(${UTEXAS_PLANNING_INCLUDE_DIRS})
+link_directories(${UTEXAS_PLANNING_LIBRARY_DIRS})
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(UTEXAS_GUIDANCE REQUIRED utexas_guidance)
+include_directories(${UTEXAS_GUIDANCE_INCLUDE_DIRS})
+link_directories(${UTEXAS_GUIDANCE_LIBRARY_DIRS})
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -108,12 +115,12 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-# include_directories(include)
+include_directories(include)
 
 ## Declare a C++ library
-# add_library(utexas_guidance_ros
-#   src/${PROJECT_NAME}/utexas_guidance_ros.cpp
-# )
+add_library(utexas_guidance_ros
+  src/lib/robot_navigator.cpp
+)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
