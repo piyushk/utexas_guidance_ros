@@ -17,6 +17,7 @@
 #include <utexas_guidance_msgs/ExperimentStatus.h>
 #include <utexas_guidance_msgs/MultiRobotNavigationAction.h>
 #include <utexas_guidance/mdp/guidance_model.h>
+#include <utexas_planning/core/abstract_planner.h>
 
 namespace utexas_guidance_ros {
 
@@ -81,11 +82,13 @@ namespace utexas_guidance_ros {
       void determineRobotTransitionalLocation(const geometry_msgs::Pose &pose, utexas_guidance::RobotState &rs);
       void roundOffRobotLocation(utexas_guidance::RobotState &rs);
 
-                takeAction(system_state_, 
-                           action, 
-                           next_state, 
-                           master_rng_);
-      getAllActions(system_state_, current_state_actions);
+      void takeAction(const utexas_guidance::State& state, 
+                      const utexas_guidance::Action& action,
+                      utexas_guidance::State& next_state);
+
+      void getAllActions(const utexas_guidance::State& state,
+                         std::vector<utexas_guidance::Action>& actions);
+
       /* bwi_mapper::Point2f getLocationFromGraphId(int destination); */
 
       utexas_guidance::State system_state_;
@@ -115,7 +118,7 @@ namespace utexas_guidance_ros {
       YAML::Node planner_params_;
       utexas_guidance::Graph graph_;
       utexas_guidance::GuidanceModel::Ptr model_;
-      utexas_planning::AbstractSolver::Ptr solver_;
+      utexas_planning::AbstractPlanner::Ptr solver_;
       boost::shared_ptr<RNG> master_rng_;
 
   };

@@ -135,7 +135,7 @@ namespace utexas_guidance_ros {
     episode_modification_mutex_.unlock();
 
     /* TODO Instantiate the solver based on the alias requested in the goal request. */
-    solver_
+    // solver_
 
     while (ros::ok()) {
       episode_modification_mutex_.lock();
@@ -295,7 +295,8 @@ namespace utexas_guidance_ros {
               }
 
               // TODO this should probably not be a blocking call.
-              solver_->performEpisodeStartProcessing(system_state_, 10.0f);
+              utexas_guidance::State::ConstPtr system_state_ptr(new utexas_guidance::State(system_state_));
+              solver_->performEpisodeStartProcessing(system_state_ptr, 10.0f);
 
               if (colocated_robot_id != utexas_guidance::NONE) {
                 utexas_guidance_msgs::UpdateGuidanceGui srv;
@@ -399,8 +400,7 @@ namespace utexas_guidance_ros {
                 // Note that the RNG won't be used as it is a deterministic action.
                 takeAction(system_state_, 
                            action, 
-                           next_state, 
-                           master_rng_);
+                           next_state);
 
                 // If a robot was assigned a task, and it is not exactly at the location it was at, then reset the nav
                 // task.
@@ -420,8 +420,7 @@ namespace utexas_guidance_ros {
                   utexas_guidance::State next_state;
                   takeAction(system_state_, 
                              action, 
-                             next_state, 
-                             master_rng_);
+                             next_state);
                   wait_action_next_states_.insert(next_state);
                 }
                 ROS_WARN_STREAM("Expecting the following possible next states after wait action: ");
@@ -514,7 +513,7 @@ namespace utexas_guidance_ros {
       } else {
 
         utexas_guidance::State::ConstPtr system_state_ptr(new utexas_guidance::State(system_state_));
-        utexas_guidance::Action::ConstPtr wait_action(new utexas_guidance::Action(WAIT));
+        utexas_guidance::Action::ConstPtr wait_action(new utexas_guidance::Action(utexas_guidance::WAIT));
         // TODO make sure that the planning isn't getting reset.
         solver_->performPostActionProcessing(system_state_ptr,
                                              wait_action,
@@ -650,9 +649,55 @@ namespace utexas_guidance_ros {
       }
     }
 
-    utexas_guidance::State   
+    utexas_planning::State::ConstPtr state_ptr(new utexas_guidance::State(ask_state));
+    utexas_planning::Action::ConstPtr action_ptr = solver_->getBestAction(state_ptr);
+    utexas_guidance::Action::ConstPtr action_derived_ptr = 
+      boost::dynamic_pointer_cast<const utexas_guidance::Action>(action_ptr);
+    return *action_derived_ptr;
+  }
 
-    return solver_->getBestAction(ask_state);
+  void RobotNavigator::takeAction(const utexas_guidance::State& state, 
+                                  const utexas_guidance::Action& action,
+                                  utexas_guidance::State& next_state) {
+    
+    // TODO This reward should go somewhere.
+    float unused_reward = 0.0f;
+    utexas_planning::State::ConstPtr state_ptr(new utexas_guidance::State(state));
+    utexas_planning::Action::ConstPtr action_ptr(new utexas_guidance::Action(action));
+    utexas_planning::State::ConstPtr next_state_ptr;
+
+    int unused_depth_count;
+    float unused_action_timeout;
+
+    model_->takeAction(state_ptr,
+                       action_ptr,
+                       unused_reward,
+                       utexas_planning::RewardMetrics::Ptr(),
+                       next_state_ptr,
+                       unused_depth_count,
+                       unused_action_timeout,
+                       master_rng_);
+
+    utexas_guidance::State::ConstPtr next_state_derived_ptr = 
+      boost::dynamic_pointer_cast<const utexas_guidance::State>(next_state_ptr);
+    next_state = *next_state_derived_ptr;
+
+  }
+
+  void RobotNavigator::getAllActions(const utexas_guidance::State& state,
+                                     std::vector<utexas_guidance::Action>& actions) {
+    
+    utexas_planning::State::ConstPtr state_ptr(new utexas_guidance::State(state));
+    std::vector<utexas_planning::Action::ConstPtr> action_ptrs;
+    model_->getActionsAtState(state_ptr, action_ptrs);
+
+    actions.clear();
+    BOOST_FOREACH(const utexas_planning::Action::ConstPtr& action_ptr, action_ptrs) {
+      utexas_guidance::Action::ConstPtr action_derived_ptr = 
+        boost::dynamic_pointer_cast<const utexas_guidance::Action>(action_ptr);
+      actions.push_back(*action_derived_ptr);
+    }
+
   }
 
 } /* utexas_guidance */
