@@ -115,7 +115,7 @@ namespace utexas_guidance_ros {
       float controller_thread_frequency_;
 
       YAML::Node model_params_;
-      YAML::Node planner_params_;
+      YAML::Node all_planner_params_;
       utexas_guidance::Graph graph_;
       utexas_guidance::GuidanceModel::Ptr model_;
       utexas_planning::AbstractPlanner::Ptr solver_;

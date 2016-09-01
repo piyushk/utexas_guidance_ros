@@ -44,7 +44,7 @@ namespace utexas_guidance_ros {
 
     YAML::Node params = YAML::LoadFile(experiment_file);
     model_params_ = params["model"][0];
-    planner_params_ = params["planner"];
+    all_planner_params_ = params["planners"];
 
     master_rng_.reset(new RNG(0));
 
@@ -134,8 +134,36 @@ namespace utexas_guidance_ros {
 
     episode_modification_mutex_.unlock();
 
-    /* TODO Instantiate the solver based on the alias requested in the goal request. */
-    // solver_
+    solver_.reset();
+
+    for (unsigned planner_idx = 0; planner_idx < all_planner_params.size(); ++planner_idx) {
+      std::string planner_alias = all_planner_params[planner_idx]["alias"].as<std::string>();
+      if (planner_alias == goal->solver_alias) {
+        std::string planner_name = all_planner_params[planner_idx]["name"].as<std::string>();
+        boost::shared_ptr<RNG> planner_rng(new RNG(rng->randomInt()));
+        GenerativeModel::ConstPtr planner_model = model_;
+        if (all_planner_params[planner_idx]["model"]) {
+          boost::shared_ptr<RNG> planner_model_rng(new RNG(rng->randomInt()));
+          std::string planner_model_name = models_yaml[model_idx]["name"].as<std::string>();
+          planner_model = loader_->loadModel(planner_model_name, 
+                                             planner_model_rng, 
+                                             all_planner_params[planner_idx]["model"], 
+                                             data_directory_);
+        }
+        solver_ = loader_->loadPlanner(planner_name,
+                                       planner_model,
+                                       planner_rng,
+                                       all_planner_params[planner_idx],
+                                       "",
+                                       false);
+        break;
+      }
+    }
+
+    if (!solver_) {
+      as_->setAborted();
+      return;
+    }
 
     while (ros::ok()) {
       episode_modification_mutex_.lock();
