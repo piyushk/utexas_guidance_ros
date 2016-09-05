@@ -14,15 +14,15 @@
 #include <tf/transform_datatypes.h>
 #include <yaml-cpp/yaml.h>
 
-#include <bwi_guidance_msgs/MultiRobotNavigationAction.h>
-#include <bwi_guidance_msgs/UpdateGuidanceGui.h>
+#include <utexas_guidance_msgs/MultiRobotNavigationAction.h>
+#include <utexas_guidance_msgs/UpdateGuidanceGui.h>
 
-int system_state = bwi_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
+int system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
 
 std::vector<std::string> goal_names;
 std::vector<int> goal_graph_ids;
 boost::shared_ptr<boost::thread> episode_start_thread;
-boost::shared_ptr<actionlib::SimpleActionClient<bwi_guidance_msgs::MultiRobotNavigationAction> > mrn_client;
+boost::shared_ptr<actionlib::SimpleActionClient<utexas_guidance_msgs::MultiRobotNavigationAction> > mrn_client;
 ros::ServiceClient gui_service;
 
 std::string tf_prefix;
@@ -35,17 +35,12 @@ void readGoalsFromFile(std::string &filename) {
 
   std::ifstream fin(filename.c_str());
   YAML::Node doc;
-#ifdef HAVE_NEW_YAMLCPP
   doc = YAML::Load(fin);
-#else
-  YAML::Parser parser(fin);
-  parser.GetNextDocument(doc);
-#endif
   for (size_t i = 0; i < doc.size(); ++i) {
     std::string name;
     int node;
-    doc[i]["name"] >> name;
-    doc[i]["node"] >> node;
+    name = doc[i]["name"].as<std::string>();
+    node = doc[i]["node"].as<int>();
     goal_names.push_back(name);
     goal_graph_ids.push_back(node);
   }
@@ -64,8 +59,9 @@ void monitorEpisodeStartThread() {
   if (gui_service.call(srv)) {
     if (srv.response.index >= 0) {
       ROS_INFO_NAMED("guidance_gui_controller", "req timed out, sending ep start request.");
-      bwi_guidance_msgs::MultiRobotNavigationGoal goal;
+      utexas_guidance_msgs::MultiRobotNavigationGoal goal;
       goal.goal_node_id = goal_graph_ids[srv.response.index];
+      goal.solver_alias = "MCTS";
       mrn_client->sendGoal(goal);
     } else {
       // Do nothing. The request probably got preempted.
@@ -171,46 +167,46 @@ void showPleaseWaitImage() {
   displayImage(image);
 }
 
-bool updateGui(bwi_guidance_msgs::UpdateGuidanceGui::Request& request,
-               bwi_guidance_msgs::UpdateGuidanceGui::Response& response) {
+bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
+               utexas_guidance_msgs::UpdateGuidanceGui::Response& response) {
   response.success = true;
   response.message = "";
   /* ROS_INFO_STREAM_NAMED("guidance_gui_controller", "received request type: " << request.type); */
   switch(request.type) {
-    case bwi_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START:
-      if (system_state == bwi_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START) {
+    case utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START:
+      if (system_state == utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START) {
         response.success = false;
         response.message = "Episode start already enabled!";
       } else {
         clearImage();
-        system_state = bwi_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START;
+        system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START;
         episode_start_thread.reset(new boost::thread(&monitorEpisodeStartThread));
       }
       break;
-    case bwi_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START:
+    case utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START:
       clearImage();
       displayMessage("If you would like navigation assistance, please follow me till I stop and let me know.");
-      system_state = bwi_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
+      system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
       break;
-    case bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING:
+    case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING:
       clearImage();
       displayMessage("");
-      system_state = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+      system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
       break;
-    case bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION:
+    case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION:
       showArrowToDestination(request.orientation_destination);
       displayMessage("Please move ahead in the indicated direction!");
-      system_state = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION;
+      system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION;
       break;
-    case bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME:
+    case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME:
       showFollowMeImage();
       displayMessage("Follow Me!");
-      system_state = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
+      system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
       break;
-    case bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT:
+    case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT:
       showPleaseWaitImage();
       displayMessage("Please wait!");
-      system_state = bwi_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
+      system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
       break;
   };
 
@@ -262,7 +258,7 @@ int main(int argc, char **argv) {
   private_nh.param<std::string>("u_turn_image", u_turn_image_file, images_dir + "/UTurn.png");
   u_turn_image = cv::imread(u_turn_image_file);
 
-  mrn_client.reset(new actionlib::SimpleActionClient<bwi_guidance_msgs::MultiRobotNavigationAction>("/guidance", true));
+  mrn_client.reset(new actionlib::SimpleActionClient<utexas_guidance_msgs::MultiRobotNavigationAction>("/guidance", true));
   ROS_INFO_NAMED("guidance_gui_controller", "Waiting for guidance action server.");
   mrn_client->waitForServer();
   ROS_INFO_NAMED("guidance_gui_controller", "Guidance action server found.");

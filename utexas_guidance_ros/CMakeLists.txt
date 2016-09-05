@@ -4,7 +4,16 @@ project(utexas_guidance_ros)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED
+  actionlib_msgs
+  bwi_mapper
+  cv_bridge
+  geometry_msgs
+  move_base_msgs
+  roscpp
+  roslib
+  std_srvs
+)
 
 ## System dependencies are found with CMake's conventions
 find_package(PkgConfig REQUIRED)
@@ -118,8 +127,19 @@ catkin_package(
 include_directories(include)
 
 ## Declare a C++ library
-add_library(utexas_guidance_ros
+add_library(lib_robot_navigator
   src/lib/robot_navigator.cpp
+)
+target_link_libraries(lib_robot_navigator
+  ${catkin_LIBRARIES}
+  ${UTEXAS_GUIDANCE_LIBRARIES}
+  ${UTEXAS_PLANNING_LIBRARIES}
+)
+
+add_executable(robot_navigator src/nodes/robot_navigator.cpp)
+target_link_libraries(robot_navigator
+  ${catkin_LIBRARIES}
+  lib_robot_navigator
 )
 
 ## Add cmake target dependencies of the library
@@ -128,7 +148,11 @@ add_library(utexas_guidance_ros
 # add_dependencies(utexas_guidance_ros ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
-# add_executable(utexas_guidance_ros_node src/utexas_guidance_ros_node.cpp)
+add_executable(guidance_gui_controller src/nodes/guidance_gui_controller.cpp)
+target_link_libraries(guidance_gui_controller
+  ${catkin_LIBRARIES}
+  yaml-cpp
+)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

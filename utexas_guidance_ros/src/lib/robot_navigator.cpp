@@ -12,7 +12,7 @@
 
 #include <utexas_guidance_msgs/UpdateGuidanceGui.h>
 #include <utexas_guidance_ros/robot_navigator.h>
-
+#include <utexas_planning/common/utils.h>
 #include <opencv/highgui.h>
 
 namespace utexas_guidance_ros {
@@ -53,6 +53,10 @@ namespace utexas_guidance_ros {
 
     model_.reset(new utexas_guidance::GuidanceModel);
     model_->init(model_params_, "", master_rng_);
+    
+    loader_.reset(new utexas_planning::ClassLoader);
+    std::vector<std::string> libraries = utexas_planning::getLibrariesFromEnvironment();
+    loader_->addLibraries(libraries);
   }
 
   RobotNavigator::~RobotNavigator() {
@@ -136,25 +140,25 @@ namespace utexas_guidance_ros {
 
     solver_.reset();
 
-    for (unsigned planner_idx = 0; planner_idx < all_planner_params.size(); ++planner_idx) {
-      std::string planner_alias = all_planner_params[planner_idx]["alias"].as<std::string>();
+    for (unsigned planner_idx = 0; planner_idx < all_planner_params_.size(); ++planner_idx) {
+      std::string planner_alias = all_planner_params_[planner_idx]["alias"].as<std::string>();
       if (planner_alias == goal->solver_alias) {
-        std::string planner_name = all_planner_params[planner_idx]["name"].as<std::string>();
-        boost::shared_ptr<RNG> planner_rng(new RNG(rng->randomInt()));
-        GenerativeModel::ConstPtr planner_model = model_;
-        if (all_planner_params[planner_idx]["model"]) {
-          boost::shared_ptr<RNG> planner_model_rng(new RNG(rng->randomInt()));
-          std::string planner_model_name = models_yaml[model_idx]["name"].as<std::string>();
+        std::string planner_name = all_planner_params_[planner_idx]["name"].as<std::string>();
+        boost::shared_ptr<RNG> planner_rng(new RNG(master_rng_->randomInt()));
+        utexas_planning::GenerativeModel::ConstPtr planner_model = model_;
+        if (all_planner_params_[planner_idx]["model"]) {
+          boost::shared_ptr<RNG> planner_model_rng(new RNG(master_rng_->randomInt()));
+          std::string planner_model_name = "utexas_guidance::GuidanceModel";
           planner_model = loader_->loadModel(planner_model_name, 
                                              planner_model_rng, 
-                                             all_planner_params[planner_idx]["model"], 
-                                             data_directory_);
+                                             all_planner_params_[planner_idx]["model"], 
+                                             "/tmp");
         }
         solver_ = loader_->loadPlanner(planner_name,
                                        planner_model,
                                        planner_rng,
-                                       all_planner_params[planner_idx],
-                                       "",
+                                       all_planner_params_[planner_idx],
+                                       "/tmp",
                                        false);
         break;
       }
