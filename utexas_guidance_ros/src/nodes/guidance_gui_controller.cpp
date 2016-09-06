@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
 
   // Read images from parameters
   std::string up_arrow_image_file, u_turn_image_file;
-  std::string images_dir = ros::package::getPath("bwi_guidance") + "/images";
+  std::string images_dir = ros::package::getPath("utexas_guidance_ros") + "/images";
 
   std::string key;
   tf_prefix = "";

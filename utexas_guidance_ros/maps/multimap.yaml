@@ -1,5 +1,5 @@
 maps:
   level1:
-    yaml: package://bwi_guidance/maps/map.yaml
+    yaml: package://utexas_guidance_ros/maps/map.yaml
     origin: [0, 0, 0, 0, 0, 0]
-    data_directory: package://bwi_guidance/maps
+    data_directory: package://utexas_guidance_ros/maps

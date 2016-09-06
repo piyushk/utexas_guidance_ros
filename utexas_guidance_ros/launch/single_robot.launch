@@ -56,9 +56,9 @@
     <!--   <param name="font_size" value="20" /> -->
     <!-- </node> -->
     <!-- <node name="gui_image" type="image_view" pkg="image_view" /> -->
-    <node name="robot_visualizer" pkg="bwi_guidance_solver" type="rqt_gui_runner" args="ns $(arg ns)" />
+    <node name="robot_visualizer" pkg="utexas_guidance_ros" type="rqt_gui_runner" args="ns $(arg ns)" />
 
-    <node name="guidance_gui" type="guidance_gui_controller" pkg="bwi_guidance_solver" />
+    <node name="guidance_gui" type="guidance_gui_controller" pkg="utexas_guidance_ros" />
 
     <!-- launch the planner and reasoner -->
     <!-- <include file="$(find bwi_kr_execution)/launch/bwi_kr_execution.launch"> -->
