@@ -30,7 +30,9 @@
   </node>
 
   <!-- Launch the base robot navigator -->
-  <node name="robot_navigator" pkg="utexas_guidance_ros" type="robot_navigator">
+  <node name="robot_navigator" pkg="utexas_guidance_ros" type="robot_navigator"
+    launch-prefix="gdb -ex run --args"
+    >
     <param name="experiment_file" value="$(find utexas_guidance_ros)/exp/exp.yaml" />
   </node>
 

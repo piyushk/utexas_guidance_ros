@@ -1,8 +1,8 @@
 models:
   - name: utexas_guidance::GuidanceModel
     initial_num_requests: 1
-    graph_file: /u/piyushk/utexas_planning/utexas_guidance/map_config/map/graph.yaml
-    task_model_file: /u/piyushk/utexas_planning/utexas_guidance/map_config/map/fixed_tasks.yaml
+    graph_file: /home/piyushk/guidance_ws/src/utexas_guidance/map_config/map/graph.yaml
+    task_model_file: /home/piyushk/guidance_ws/src/utexas_guidance/map_config/map/fixed_tasks.yaml
     task_utility: 0.5
 planners:
   - name: utexas_guidance::SingleRobotSolver

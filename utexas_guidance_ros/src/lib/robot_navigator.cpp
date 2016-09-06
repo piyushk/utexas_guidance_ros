@@ -43,7 +43,7 @@ namespace utexas_guidance_ros {
     }
 
     YAML::Node params = YAML::LoadFile(experiment_file);
-    model_params_ = params["model"][0];
+    model_params_ = params["models"][0];
     all_planner_params_ = params["planners"];
 
     master_rng_.reset(new RNG(0));
@@ -53,7 +53,8 @@ namespace utexas_guidance_ros {
 
     model_.reset(new utexas_guidance::GuidanceModel);
     model_->init(model_params_, "", master_rng_);
-    
+    model_->getUnderlyingGraph(graph_);
+
     loader_.reset(new utexas_planning::ClassLoader);
     std::vector<std::string> libraries = utexas_planning::getLibrariesFromEnvironment();
     loader_->addLibraries(libraries);
@@ -64,6 +65,8 @@ namespace utexas_guidance_ros {
   }
 
   void RobotNavigator::start() {
+
+    ROS_INFO_NAMED("RobotNavigator", "Starting up...");
 
     // Setup variables/controllers for each robot.
     int num_robots = available_robot_list_.size();
@@ -200,7 +203,7 @@ namespace utexas_guidance_ros {
 
   void RobotNavigator::runControllerThread() {
 
-    ROS_INFO_NAMED("RobotNavigator", "Starting up...");
+    ROS_INFO_NAMED("RobotNavigator", "Controller Thread Running...");
 
     while(ros::ok()) {
 
@@ -507,7 +510,7 @@ namespace utexas_guidance_ros {
             if (pause_robot_ == robot_idx) {
               boost::posix_time::time_duration time_since_wait_start =
                 boost::posix_time::microsec_clock::local_time() - wait_action_start_time_;
-              if (time_since_wait_start.total_milliseconds() > 3000) {
+              if (time_since_wait_start.total_milliseconds() > 1500) {
                 pause_robot_ = utexas_guidance::NONE;
                 utexas_guidance_msgs::UpdateGuidanceGui srv;
                 srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
@@ -534,6 +537,8 @@ namespace utexas_guidance_ros {
               }
             }
           }
+
+          ROS_WARN_STREAM("4done");
         } else {
           ROS_WARN_THROTTLE_NAMED(1.0f, "MultiRobotNavigator", " still waiting for robot locations. This shouldn't take too long...");
         }
