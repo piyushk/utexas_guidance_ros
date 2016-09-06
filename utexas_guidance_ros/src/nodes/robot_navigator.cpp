@@ -14,8 +14,8 @@ void availableRobotHandler(const bwi_msgs::AvailableRobotArray::ConstPtr availab
   }
 
   // TODO: parametrize.
-  if (available_robot_list.size() == 5) {
-    waiting_for_robots = true;
+  if (available_robot_list.size() == 3) {
+    waiting_for_robots = false;
   }
 }
 
@@ -29,13 +29,6 @@ int main(int argc, char **argv) {
   while(waiting_for_robots) {
     ros::spinOnce();
     boost::this_thread::sleep(boost::posix_time::milliseconds(50));
-  }
-
-  ros::NodeHandle private_nh("~");
-  std::string tasks_file;
-  if (!private_nh.getParam("tasks_file", tasks_file)) {
-    ROS_FATAL("Tasks file parameter ~tasks_file not specified!");
-    return -1;
   }
 
   RobotNavigator brn(nh, available_robot_list);
