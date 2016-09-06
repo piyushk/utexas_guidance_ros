@@ -1,0 +1,37 @@
+<launch>
+
+  <arg name="multimap_file" default="$(find utexas_guidance_ros)/maps/multimap.yaml" />
+
+  <!-- start the simulation environment -->
+  <include file="$(find utexas_guidance_ros)/launch/map_gazebo.launch" />
+
+  <!-- launch the multi map server for the simulated world -->
+  <node name="multi_level_map_server" pkg="multi_level_map_server" type="multi_level_map_server">
+    <param name="map_file" value="$(arg multimap_file)" />
+  </node>
+
+  <node name="multi_robot_launcher" pkg="bwi_launch" type="multi_robot_launcher">
+    <rosparam command="load" param="configuration" file="$(find utexas_guidance_ros)/config/simulation.yaml" />
+    <param name="launch_file" value="$(find utexas_guidance_ros)/launch/single_robot.launch" />
+  </node>
+
+  <!-- Launch the person -->
+  <group ns="person">
+    <arg name="personid" default="person" />
+    <include file="$(find bwi_gazebo_entities)/launch/controllable_person.launch">
+      <arg name="x" value="18.75" />
+      <arg name="y" value="9.0" />
+      <arg name="personid" default="$(arg personid)" />
+    </include>
+    <node name="odom_to_pose" pkg="utexas_guidance_ros" type="odom_to_pose" />
+  </group>
+  <node name="person_visualizer" pkg="rqt_gui" type="rqt_gui" args="--perspective-file $(find utexas_guidance_ros)/perspectives/person.perspective">
+    <remap from="/image" to="/person/camera/rgb/image_raw" />
+  </node>
+
+  <!-- Launch the base robot navigator -->
+  <node name="robot_navigator" pkg="bwi_guidance_solver" type="robot_navigator">
+    <param name="experiment_file" value="$(find utexas_guidance_ros)/exp/exp.yaml" />
+  </node>
+
+</launch>
