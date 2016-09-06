@@ -31,6 +31,8 @@ ros::Publisher image_publisher;
 cv::Mat u_turn_image, up_arrow_image;
 geometry_msgs::Pose robot_location;
 
+bool use_rqt_visualizer = false;
+
 void readGoalsFromFile(std::string &filename) {
 
   std::ifstream fin(filename.c_str());
@@ -72,11 +74,13 @@ void monitorEpisodeStartThread() {
 }
 
 void displayMessage(const std::string& msg) {
-  bwi_msgs::QuestionDialog srv;
-  srv.request.type = bwi_msgs::QuestionDialogRequest::DISPLAY;
-  srv.request.message = msg;
-  srv.request.timeout = bwi_msgs::QuestionDialogRequest::NO_TIMEOUT;
-  gui_service.call(srv);
+  if (use_rqt_visualizer) {
+    bwi_msgs::QuestionDialog srv;
+    srv.request.type = bwi_msgs::QuestionDialogRequest::DISPLAY;
+    srv.request.message = msg;
+    srv.request.timeout = bwi_msgs::QuestionDialogRequest::NO_TIMEOUT;
+    gui_service.call(srv);
+  }
 }
 
 void displayImage(const cv::Mat& image) {
@@ -180,7 +184,9 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
       } else {
         clearImage();
         system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START;
-        episode_start_thread.reset(new boost::thread(&monitorEpisodeStartThread));
+        if (use_rqt_visualizer) {
+          episode_start_thread.reset(new boost::thread(&monitorEpisodeStartThread));
+        }
       }
       break;
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START:
@@ -221,18 +227,23 @@ int main(int argc, char **argv) {
   ros::init(argc, argv, "guidance_gui_controller");
   ros::NodeHandle nh, private_nh("~");
 
-  std::string goals_file_param_key;
-  std::string goals_file;
-  if (private_nh.searchParam("goals_file", goals_file_param_key)) {
-    if (!private_nh.getParam(goals_file_param_key, goals_file)) {
+  use_rqt_visualizer = false;
+  private_nh.getParam("use_rqt_visualizer", use_rqt_visualizer);
+    
+  if (use_rqt_visualizer) {
+    std::string goals_file_param_key;
+    std::string goals_file;
+    if (private_nh.searchParam("goals_file", goals_file_param_key)) {
+      if (!private_nh.getParam(goals_file_param_key, goals_file)) {
+        ROS_FATAL("Goals file parameter goals_file not specified!");
+        return -1;
+      }
+    } else {
       ROS_FATAL("Goals file parameter goals_file not specified!");
       return -1;
     }
-  } else {
-    ROS_FATAL("Goals file parameter goals_file not specified!");
-    return -1;
+    readGoalsFromFile(goals_file);
   }
-  readGoalsFromFile(goals_file);
 
   // Read images from parameters
   std::string up_arrow_image_file, u_turn_image_file;

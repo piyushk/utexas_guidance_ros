@@ -1,0 +1,20 @@
+<launch>
+
+  <arg name="ns" />
+
+  <arg name="x" default="0" />
+  <arg name="y" default="0" />
+  <arg name="yaw" default="0" />
+  <arg name="robot_configuration" default="$(find segbot_bringup)/launch/includes/auxiliary.segbot_v2.launch.xml" />
+
+  <include file="$(find utexas_guidance_ros)/launch/single_robot.launch">
+    <arg name="ns" value="$(arg ns)" />
+    <arg name="x" value="$(arg x)" />
+    <arg name="y" value="$(arg y)" />
+    <arg name="yaw" value="$(arg yaw)" />
+    <arg name="robot_configuration" value="$(arg robot_configuration)" />
+    <arg name="use_rqt_visualizer" value="true" />
+  </include>
+
+</launch>
+

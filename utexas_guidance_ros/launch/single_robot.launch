@@ -7,6 +7,8 @@
   <arg name="yaw" default="0" />
   <arg name="robot_configuration" default="$(find segbot_bringup)/launch/includes/auxiliary.segbot_v2.launch.xml" />
 
+  <arg name="use_rqt_visualizer" default="false" />
+
   <group ns="$(arg ns)">
 
     <!-- also launch the level multiplexer and the level selector -->
@@ -56,9 +58,11 @@
     <!--   <param name="font_size" value="20" /> -->
     <!-- </node> -->
     <!-- <node name="gui_image" type="image_view" pkg="image_view" /> -->
-    <node name="robot_visualizer" pkg="utexas_guidance_ros" type="rqt_gui_runner" args="ns $(arg ns)" />
+    <node if="$(arg use_rqt_visualizer)" name="robot_visualizer" pkg="utexas_guidance_ros" type="rqt_gui_runner" args="ns $(arg ns)" />
 
-    <node name="guidance_gui" type="guidance_gui_controller" pkg="utexas_guidance_ros" />
+    <node name="guidance_gui" type="guidance_gui_controller" pkg="utexas_guidance_ros">
+      <param name="use_rqt_visualizer" value="$(arg use_rqt_visualizer)" />
+    </node>
 
     <!-- launch the planner and reasoner -->
     <!-- <include file="$(find bwi_kr_execution)/launch/bwi_kr_execution.launch"> -->
