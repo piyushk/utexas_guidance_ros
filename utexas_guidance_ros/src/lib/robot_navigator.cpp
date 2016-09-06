@@ -470,6 +470,7 @@ namespace utexas_guidance_ros {
 
           ROS_WARN_STREAM("4");
           for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
+            ROS_WARN_STREAM("  idx: " << robot_idx);
             utexas_guidance::RobotState &rs = system_state_.robots[robot_idx];
 
             // Check if a robot service task is still being initialized, or was just completed.

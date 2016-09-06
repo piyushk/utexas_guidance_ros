@@ -175,7 +175,7 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
                utexas_guidance_msgs::UpdateGuidanceGui::Response& response) {
   response.success = true;
   response.message = "";
-  /* ROS_INFO_STREAM_NAMED("guidance_gui_controller", "received request type: " << request.type); */
+  ROS_WARN_STREAM_NAMED("guidance_gui_controller", "received request type: " << request.type);
   switch(request.type) {
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START:
       if (system_state == utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START) {
@@ -216,6 +216,7 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
       break;
   };
 
+  ROS_WARN_STREAM_NAMED("guidance_gui_controller", "  request done!");
   return true;
 }
 
@@ -275,12 +276,13 @@ int main(int argc, char **argv) {
   ROS_INFO_NAMED("guidance_gui_controller", "Guidance action server found.");
 
   ros::ServiceServer enable_episode_start_service = nh.advertiseService("update_gui", &updateGui);
-  gui_service = nh.serviceClient<bwi_msgs::QuestionDialog>("question_dialog");
 
-  ROS_INFO_NAMED("guidance_gui_controller", "Waiting for segbot_gui service.");
-  gui_service.waitForExistence();
-  ROS_INFO_NAMED("guidance_gui_controller", "segbot_gui service found.");
-
+  if (use_rqt_visualizer) {
+    gui_service = nh.serviceClient<bwi_msgs::QuestionDialog>("question_dialog");
+    ROS_INFO_NAMED("guidance_gui_controller", "Waiting for segbot_gui service.");
+    gui_service.waitForExistence();
+    ROS_INFO_NAMED("guidance_gui_controller", "segbot_gui service found.");
+  }
 
   image_publisher = nh.advertise<sensor_msgs::Image>("image", 1);
   ros::Subscriber robot_location_subscriber = nh.subscribe("amcl_pose", 1, locationHandler);
