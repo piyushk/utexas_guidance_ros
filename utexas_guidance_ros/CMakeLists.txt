@@ -127,10 +127,10 @@ catkin_package(
 include_directories(include)
 
 ## Declare a C++ library
-add_library(lib_robot_navigator
+add_library(utexas_guidance_ros
   src/lib/robot_navigator.cpp
 )
-target_link_libraries(lib_robot_navigator
+target_link_libraries(utexas_guidance_ros
   ${catkin_LIBRARIES}
   ${UTEXAS_GUIDANCE_LIBRARIES}
   ${UTEXAS_PLANNING_LIBRARIES}
@@ -139,7 +139,7 @@ target_link_libraries(lib_robot_navigator
 add_executable(robot_navigator src/nodes/robot_navigator.cpp)
 target_link_libraries(robot_navigator
   ${catkin_LIBRARIES}
-  lib_robot_navigator
+  utexas_guidance_ros
 )
 
 ## Add cmake target dependencies of the library
