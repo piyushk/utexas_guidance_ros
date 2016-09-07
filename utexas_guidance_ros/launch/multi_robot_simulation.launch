@@ -2,6 +2,8 @@
 
   <arg name="multimap_file" default="$(find utexas_guidance_ros)/maps/multimap.yaml" />
 
+  <param name="goals_file" value="$(find utexas_guidance_ros)/config/map_goals.yaml" />
+
   <!-- start the simulation environment -->
   <include file="$(find utexas_guidance_ros)/launch/map_gazebo.launch" />
 
@@ -12,7 +14,7 @@
 
   <node name="multi_robot_launcher" pkg="bwi_launch" type="multi_robot_launcher">
     <rosparam command="load" param="configuration" file="$(find utexas_guidance_ros)/config/simulation.yaml" />
-    <param name="launch_file" value="$(find utexas_guidance_ros)/launch/single_robot.launch" />
+    <param name="launch_file" value="$(find utexas_guidance_ros)/launch/single_robot_with_rqt.launch" />
   </node>
 
   <!-- Launch the person -->

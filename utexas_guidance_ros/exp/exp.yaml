@@ -7,3 +7,5 @@ models:
 planners:
   - name: utexas_guidance::SingleRobotSolver
     alias: SingleRobot
+    h0_wait_for_new_request: true
+    sleep_for_timeout: true

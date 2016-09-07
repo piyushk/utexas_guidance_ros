@@ -131,16 +131,6 @@ namespace utexas_guidance_ros {
 
   void RobotNavigator::execute(const utexas_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal) {
 
-    episode_modification_mutex_.lock();
-    episode_completed_ = false;
-    terminate_episode_ = false;
-    episode_in_progress_ = true;
-    at_episode_start_ = true;
-    goal_node_id_ = goal->goal_node_id;
-    human_location_available_ = false;
-
-    episode_modification_mutex_.unlock();
-
     solver_.reset();
 
     for (unsigned planner_idx = 0; planner_idx < all_planner_params_.size(); ++planner_idx) {
@@ -168,9 +158,20 @@ namespace utexas_guidance_ros {
     }
 
     if (!solver_) {
+      ROS_ERROR_STREAM_NAMED("robot_navigator", "Could not find solver with alias " << goal->solver_alias); 
       as_->setAborted();
       return;
     }
+
+    episode_modification_mutex_.lock();
+    episode_completed_ = false;
+    terminate_episode_ = false;
+    episode_in_progress_ = true;
+    at_episode_start_ = true;
+    goal_node_id_ = goal->goal_node_id;
+    human_location_available_ = false;
+
+    episode_modification_mutex_.unlock();
 
     while (ros::ok()) {
       episode_modification_mutex_.lock();
@@ -261,7 +262,7 @@ namespace utexas_guidance_ros {
         }
         /* end ESTIMATE ROBOT LOCATIONS */
 
-        ROS_WARN_STREAM("2");
+        /* ROS_WARN_STREAM("2"); */
 
         if (all_robot_locations_available) {
           bool its_decision_time = false;
@@ -329,10 +330,6 @@ namespace utexas_guidance_ros {
                 robot_gui_controller_[colocated_robot_id]->call(srv);
               }
 
-              // TODO this should probably not be a blocking call.
-              utexas_guidance::State::ConstPtr system_state_ptr(new utexas_guidance::State(system_state_));
-              solver_->performEpisodeStartProcessing(system_state_ptr, 10.0f);
-
               if (colocated_robot_id != utexas_guidance::NONE) {
                 utexas_guidance_msgs::UpdateGuidanceGui srv;
                 srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
@@ -342,7 +339,7 @@ namespace utexas_guidance_ros {
               at_episode_start_ = false;
               its_decision_time = true;
             } else {
-              ROS_WARN_STREAM("2b");
+              /* ROS_WARN_STREAM("2b"); */
               int next_loc = system_state_.requests[0].loc_node;
               int lead_action_idx = utexas_guidance::NONE;
               for (int action_idx = 0; action_idx < system_state_.actions_since_wait.size(); ++action_idx) {
@@ -374,7 +371,7 @@ namespace utexas_guidance_ros {
                 determineHumanTransitionalLocation(human_location_, system_state_.requests[0].loc_node, next_loc);
               }
 
-              ROS_WARN_STREAM("2c");
+              /* ROS_WARN_STREAM("2c"); */
 
               if (next_loc != system_state_.requests[0].loc_node) {
                 if (next_loc == goal_node_id_) {
@@ -397,9 +394,9 @@ namespace utexas_guidance_ros {
                 }
               }
             }
-            ROS_WARN_STREAM("2d");
+            /* ROS_WARN_STREAM("2d"); */
             //publishCurrentSystemState();
-            ROS_WARN_STREAM("2e");
+            /* ROS_WARN_STREAM("2e"); */
           } else if (terminate_episode_) {
             terminate_episode_ = false;
             for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
@@ -409,7 +406,7 @@ namespace utexas_guidance_ros {
             }
           }
 
-          ROS_WARN_STREAM("3");
+          /* ROS_WARN_STREAM("3"); */
           if (its_decision_time) {
             while (true) {
               utexas_guidance::Action action = getBestAction();
@@ -427,6 +424,9 @@ namespace utexas_guidance_ros {
                 } else if (action.type == utexas_guidance::LEAD_PERSON) {
                   utexas_guidance_msgs::UpdateGuidanceGui srv;
                   srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
+                  if (isRobotExactlyAt(system_state_.robots[action.robot_id], action.node)) {
+                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT;
+                  }
                   robot_gui_controller_[action.robot_id]->call(srv);
                   robot_command_status_[action.robot_id] = SERVICE_TASK_NAVIGATION_RESET;
                 }
@@ -468,9 +468,9 @@ namespace utexas_guidance_ros {
             }
           }
 
-          ROS_WARN_STREAM("4");
+          /* ROS_WARN_STREAM("4"); */
           for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
-            ROS_WARN_STREAM("  idx: " << robot_idx);
+            /* ROS_WARN_STREAM("  idx: " << robot_idx); */
             utexas_guidance::RobotState &rs = system_state_.robots[robot_idx];
 
             // Check if a robot service task is still being initialized, or was just completed.
@@ -539,13 +539,13 @@ namespace utexas_guidance_ros {
             }
           }
 
-          ROS_WARN_STREAM("4done");
+          /* ROS_WARN_STREAM("4done"); */
         } else {
           ROS_WARN_THROTTLE_NAMED(1.0f, "MultiRobotNavigator", " still waiting for robot locations. This shouldn't take too long...");
         }
       }
 
-      ROS_WARN_STREAM("5");
+      /* ROS_WARN_STREAM("5"); */
       if (!episode_in_progress_) {
         boost::this_thread::sleep(boost::posix_time::milliseconds(1000.0f/controller_thread_frequency_));
       } else {

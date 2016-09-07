@@ -57,6 +57,7 @@ void monitorEpisodeStartThread() {
   BOOST_FOREACH(const std::string& name, goal_names) {
     srv.request.options.push_back(name);
   }
+  ROS_INFO_NAMED("guidance_gui_controller", "sending req with %i options", int(srv.request.options.size()));
   srv.request.timeout = bwi_msgs::QuestionDialogRequest::NO_TIMEOUT;
   if (gui_service.call(srv)) {
     if (srv.response.index >= 0) {
@@ -175,7 +176,7 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
                utexas_guidance_msgs::UpdateGuidanceGui::Response& response) {
   response.success = true;
   response.message = "";
-  ROS_WARN_STREAM_NAMED("guidance_gui_controller", "received request type: " << request.type);
+  /* ROS_WARN_STREAM_NAMED("guidance_gui_controller", "received request type: " << request.type); */
   switch(request.type) {
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START:
       if (system_state == utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START) {
@@ -216,7 +217,7 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
       break;
   };
 
-  ROS_WARN_STREAM_NAMED("guidance_gui_controller", "  request done!");
+  /* ROS_WARN_STREAM_NAMED("guidance_gui_controller", "  request done!"); */
   return true;
 }
 
@@ -284,7 +285,7 @@ int main(int argc, char **argv) {
     ROS_INFO_NAMED("guidance_gui_controller", "segbot_gui service found.");
   }
 
-  image_publisher = nh.advertise<sensor_msgs::Image>("image", 1);
+  image_publisher = nh.advertise<sensor_msgs::Image>("image", 1, true);
   ros::Subscriber robot_location_subscriber = nh.subscribe("amcl_pose", 1, locationHandler);
 
   ros::spin();
