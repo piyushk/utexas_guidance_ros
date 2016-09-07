@@ -15,6 +15,10 @@
 #include <utexas_planning/common/utils.h>
 #include <opencv/highgui.h>
 
+#include <utexas_planning/planners/mcts/mcts.h>
+#include <utexas_guidance/mdp/single_robot_solver.h>
+#include <utexas_guidance/mdp/pdpt_solver.h>
+
 namespace utexas_guidance_ros {
 
   RobotNavigator::RobotNavigator(const boost::shared_ptr<ros::NodeHandle>& nh,
@@ -55,9 +59,6 @@ namespace utexas_guidance_ros {
     model_->init(model_params_, "", master_rng_);
     model_->getUnderlyingGraph(graph_);
 
-    loader_.reset(new utexas_planning::ClassLoader);
-    std::vector<std::string> libraries = utexas_planning::getLibrariesFromEnvironment();
-    loader_->addLibraries(libraries);
   }
 
   RobotNavigator::~RobotNavigator() {
@@ -137,22 +138,19 @@ namespace utexas_guidance_ros {
       std::string planner_alias = all_planner_params_[planner_idx]["alias"].as<std::string>();
       if (planner_alias == goal->solver_alias) {
         std::string planner_name = all_planner_params_[planner_idx]["name"].as<std::string>();
-        boost::shared_ptr<RNG> planner_rng(new RNG(master_rng_->randomInt()));
-        utexas_planning::GenerativeModel::ConstPtr planner_model = model_;
-        if (all_planner_params_[planner_idx]["model"]) {
-          boost::shared_ptr<RNG> planner_model_rng(new RNG(master_rng_->randomInt()));
-          std::string planner_model_name = "utexas_guidance::GuidanceModel";
-          planner_model = loader_->loadModel(planner_model_name, 
-                                             planner_model_rng, 
-                                             all_planner_params_[planner_idx]["model"], 
-                                             "/tmp");
+        if (planner_name == "utexas_planning::MCTS") {
+          solver_.reset(new utexas_planning::MCTS);
+        } else if (planner_name == "utexas_guidance::SingleRobotSolver") {
+          solver_.reset(new utexas_guidance::SingleRobotSolver);
+        } else if (planner_name == "utexas_guidance::PDPTSolver") {
+          solver_.reset(new utexas_guidance::PDPTSolver);
         }
-        solver_ = loader_->loadPlanner(planner_name,
-                                       planner_model,
-                                       planner_rng,
-                                       all_planner_params_[planner_idx],
-                                       "/tmp",
-                                       false);
+        utexas_planning::GenerativeModel::Ptr planner_model = model_;
+        if (all_planner_params_[planner_idx]["model"]) {
+          planner_model.reset(new utexas_guidance::GuidanceModel);
+          planner_model->init(all_planner_params_[planner_idx]["model"], "", master_rng_);
+        }
+        solver_->init(planner_model, all_planner_params_[planner_idx], "", master_rng_, true);
         break;
       }
     }

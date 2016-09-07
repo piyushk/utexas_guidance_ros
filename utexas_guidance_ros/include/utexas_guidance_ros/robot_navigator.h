@@ -18,7 +18,6 @@
 #include <utexas_guidance_msgs/MultiRobotNavigationAction.h>
 #include <utexas_guidance/mdp/guidance_model.h>
 #include <utexas_planning/core/abstract_planner.h>
-#include <utexas_planning/execution/class_loader.h>
 
 namespace utexas_guidance_ros {
 
@@ -121,8 +120,6 @@ namespace utexas_guidance_ros {
       utexas_guidance::GuidanceModel::Ptr model_;
       utexas_planning::AbstractPlanner::Ptr solver_;
       boost::shared_ptr<RNG> master_rng_;
-
-      utexas_planning::ClassLoader::Ptr loader_;
   };
 
 } /* utexas_guidance_ros */
