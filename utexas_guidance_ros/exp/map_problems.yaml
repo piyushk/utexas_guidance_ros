@@ -1,0 +1,8 @@
+solver_alias: SingleRobot
+problems:
+  - start_robot_idx: 0
+    goal_idx: 42
+  - start_robot_idx: 1
+    goal_idx: 42
+  - start_robot_idx: 2
+    goal_idx: 42

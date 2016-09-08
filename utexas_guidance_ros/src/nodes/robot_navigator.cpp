@@ -34,5 +34,7 @@ int main(int argc, char **argv) {
   RobotNavigator brn(nh, available_robot_list);
   brn.start();
 
+  ros::spin();
+
   return 0;
 }

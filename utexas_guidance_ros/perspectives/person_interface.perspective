@@ -1,0 +1,154 @@
+{
+  "keys": {}, 
+  "groups": {
+    "pluginmanager": {
+      "keys": {
+        "running-plugins": {
+          "type": "repr", 
+          "repr": "{u'bwi_rqt_plugins/QuestionDialogPlugin': [1], u'bwi_rqt_plugins/SimpleRobotSteeringPlugin': [1], u'bwi_rqt_plugins/ImageView': [1]}"
+        }
+      }, 
+      "groups": {
+        "plugin__bwi_rqt_plugins__QuestionDialogPlugin__1": {
+          "keys": {}, 
+          "groups": {
+            "dock_widget__QuestionDialogPluginUI": {
+              "keys": {
+                "dockable": {
+                  "type": "repr", 
+                  "repr": "True"
+                }, 
+                "parent": {
+                  "type": "repr", 
+                  "repr": "None"
+                }, 
+                "dock_widget_title": {
+                  "type": "repr", 
+                  "repr": "u''"
+                }
+              }, 
+              "groups": {}
+            }
+          }
+        }, 
+        "plugin__bwi_rqt_plugins__SimpleRobotSteeringPlugin__1": {
+          "keys": {}, 
+          "groups": {
+            "dock_widget__SimpleRobotSteeringUi": {
+              "keys": {
+                "dockable": {
+                  "type": "repr", 
+                  "repr": "True"
+                }, 
+                "parent": {
+                  "type": "repr", 
+                  "repr": "None"
+                }, 
+                "dock_widget_title": {
+                  "type": "repr", 
+                  "repr": "u'Simple Robot Steering'"
+                }
+              }, 
+              "groups": {}
+            }, 
+            "plugin": {
+              "keys": {
+                "topic": {
+                  "type": "repr", 
+                  "repr": "u'/person/cmd_vel'"
+                }
+              }, 
+              "groups": {}
+            }
+          }
+        }, 
+        "plugin__rqt_robot_steering__RobotSteering__1": {
+          "keys": {}, 
+          "groups": {
+            "plugin": {
+              "keys": {
+                "topic": {
+                  "type": "repr", 
+                  "repr": "u'/person/cmd_vel'"
+                }, 
+                "vx_min": {
+                  "type": "repr", 
+                  "repr": "u'-1'"
+                }, 
+                "vw_min": {
+                  "type": "repr", 
+                  "repr": "u'-3'"
+                }, 
+                "vw_max": {
+                  "type": "repr", 
+                  "repr": "u'3'"
+                }, 
+                "vx_max": {
+                  "type": "repr", 
+                  "repr": "u'1'"
+                }
+              }, 
+              "groups": {}
+            }
+          }
+        }, 
+        "plugin__bwi_rqt_plugins__ImageView__1": {
+          "keys": {}, 
+          "groups": {
+            "dock_widget__ImageViewWidget": {
+              "keys": {
+                "dockable": {
+                  "type": "repr", 
+                  "repr": "True"
+                }, 
+                "parent": {
+                  "type": "repr", 
+                  "repr": "None"
+                }, 
+                "dock_widget_title": {
+                  "type": "repr", 
+                  "repr": "u'Image View'"
+                }
+              }, 
+              "groups": {}
+            }, 
+            "plugin": {
+              "keys": {
+                "topic": {
+                  "type": "repr", 
+                  "repr": "u'/person/camera/rgb/image_raw'"
+                }
+              }, 
+              "groups": {}
+            }
+          }
+        }
+      }
+    }, 
+    "mainwindow": {
+      "keys": {
+        "geometry": {
+          "type": "repr(QByteArray.hex)", 
+          "repr(QByteArray.hex)": "QtCore.QByteArray('01d9d0cb00010000000006900000000000000e0f00000437000006910000000100000e0e00000436000000010000')", 
+          "pretty-print": "           7       6   "
+        }, 
+        "state": {
+          "type": "repr(QByteArray.hex)", 
+          "repr(QByteArray.hex)": "QtCore.QByteArray('000000ff00000000fd00000001000000030000077e0000040efc0100000003fb0000005c006200770069005f007200710074005f0070006c007500670069006e0073005f005f0049006d0061006700650056006900650077005f005f0031005f005f0049006d0061006700650056006900650077005700690064006700650074010000000000000399000000c000fffffffb0000006a007200710074005f0072006f0062006f0074005f007300740065006500720069006e0067005f005f0052006f0062006f0074005300740065006500720069006e0067005f005f0031005f005f0052006f0062006f0074005300740065006500720069006e00670055006901000001ba000002040000000000000000fc0000039f000003df000000ff00fffffffc0200000002fb00000088006200770069005f007200710074005f0070006c007500670069006e0073005f005f00530069006d0070006c00650052006f0062006f0074005300740065006500720069006e00670050006c007500670069006e005f005f0031005f005f00530069006d0070006c00650052006f0062006f0074005300740065006500720069006e00670055006901000000140000020c000000c200fffffffb00000080006200770069005f007200710074005f0070006c007500670069006e0073005f005f005100750065007300740069006f006e004400690061006c006f00670050006c007500670069006e005f005f0031005f005f005100750065007300740069006f006e004400690061006c006f00670050006c007500670069006e005500490100000226000001fc0000006300ffffff0000077e0000000000000004000000040000000800000008fc00000001000000030000000100000036004d0069006e0069006d0069007a006500640044006f0063006b00570069006400670065007400730054006f006f006c0062006100720000000000ffffffff0000000000000000')", 
+          "pretty-print": "                 \\bwi_rqt_plugins__ImageView__1__ImageViewWidget          jrqt_robot_steering__RobotSteering__1__RobotSteeringUi                                                                                                                                                                       &   c   ~                                                      "
+        }
+      }, 
+      "groups": {
+        "toolbar_areas": {
+          "keys": {
+            "MinimizedDockWidgetsToolbar": {
+              "type": "repr", 
+              "repr": "8"
+            }
+          }, 
+          "groups": {}
+        }
+      }
+    }
+  }
+}

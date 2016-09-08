@@ -103,6 +103,7 @@ namespace utexas_guidance_ros {
       bool episode_completed_;
       bool terminate_episode_;
       bool at_episode_start_;
+      bool terminate_navigator_;
 
       int goal_node_id_;
       int pause_robot_;

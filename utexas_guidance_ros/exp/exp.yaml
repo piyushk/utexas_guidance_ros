@@ -29,7 +29,7 @@ planners:
     alias: MCTS
   - name: utexas_planning::MCTS
     default_policy: utexas_guidance::SingleRobotSolver
-    max_depth: 150
+    max_depth: 300
     uct_reward_bound: 500
     backup_lambda_value: 0.0
     model: 

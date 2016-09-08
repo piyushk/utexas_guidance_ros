@@ -25,6 +25,7 @@ namespace utexas_guidance_ros {
                                  const std::vector<std::string>& available_robot_list) {
 
     nh_ = nh;
+    terminate_navigator_ = false;
 
     available_robot_list_ = available_robot_list;
 
@@ -63,6 +64,11 @@ namespace utexas_guidance_ros {
 
   RobotNavigator::~RobotNavigator() {
     // TODO join the controller thread here if initialized?
+    for (int robot_idx = 0; robot_idx < robot_controller_.size(); ++robot_idx) {
+      robot_controller_[robot_idx]->cancelAllGoals();
+    }
+    terminate_navigator_ = true;
+    //controller_thread_->join();
   }
 
   void RobotNavigator::start() {
@@ -128,7 +134,6 @@ namespace utexas_guidance_ros {
                                                                                                   false));
 
     as_->start();
-    ros::spin();
   }
 
   void RobotNavigator::execute(const utexas_guidance_msgs::MultiRobotNavigationGoalConstPtr &goal) {
@@ -205,7 +210,9 @@ namespace utexas_guidance_ros {
 
     ROS_INFO_NAMED("RobotNavigator", "Controller Thread Running...");
 
-    while(ros::ok()) {
+    while(ros::ok() && !terminate_navigator_) {
+
+        ros::spinOnce();
 
       /* restricted_mutex_scope */ {
         boost::mutex::scoped_lock episode_modification_lock(episode_modification_mutex_);
