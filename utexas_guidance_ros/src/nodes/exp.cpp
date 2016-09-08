@@ -208,7 +208,16 @@ int main(int argc, char **argv) {
       nh->advertise<geometry_msgs::PoseWithCovarianceStamped>("/" + available_robot_list[robot_idx] + "/initialpose", 1);
   }
 
-  for (int problem_idx = 0; problem_idx < problem_start_locations.size(); ++problem_idx) {
+  int problem_start_idx = 0;
+  int problem_end_idx = problem_start_locations.size();
+  int only_problem_idx = -1;
+  private_nh.getParam("only_problem_idx", only_problem_idx);
+  if (only_problem_idx != -1) {
+    problem_start_idx = only_problem_idx;
+    problem_end_idx = only_problem_idx + 1;
+  }
+
+  for (int problem_idx = problem_start_idx; problem_idx < problem_end_idx; ++problem_idx) {
 
     RobotNavigator brn(nh, available_robot_list);
 
@@ -256,8 +265,7 @@ int main(int argc, char **argv) {
     while (!mrn_client->getState().isDone() &&
            time_since_start.total_milliseconds() < 300000) {
       ros::spinOnce();
-      boost::posix_time::time_duration time_since_start =
-        boost::posix_time::microsec_clock::local_time() - start_time;
+      time_since_start = boost::posix_time::microsec_clock::local_time() - start_time;
     }
 
     if (!mrn_client->getState().isDone()) {
@@ -265,9 +273,11 @@ int main(int argc, char **argv) {
       mrn_client->cancelGoal();
       displayMessage("Oh no! It looks like the robots were unable to help you. Let's proceed to the next problem!",
                      gui_service);
+      ROS_INFO_STREAM("Accrued  " << mrn_client->getResult()->reward << " reward in " << time_since_start.total_milliseconds() << " ms.");
     } else {
       displayMessage("Yay! You found the destination. Let's proceed to the next problem!",
                      gui_service);
+      ROS_INFO_STREAM("Accrued  " << mrn_client->getResult()->reward << " reward in " << time_since_start.total_milliseconds() << " ms.");
     }
 
     mrn_client.reset();

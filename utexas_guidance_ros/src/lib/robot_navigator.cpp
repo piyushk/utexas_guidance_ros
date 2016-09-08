@@ -174,6 +174,7 @@ namespace utexas_guidance_ros {
     at_episode_start_ = true;
     goal_node_id_ = goal->goal_node_id;
     human_location_available_ = false;
+    system_reward_ = 0.0f;
 
     episode_modification_mutex_.unlock();
 
@@ -181,11 +182,17 @@ namespace utexas_guidance_ros {
       episode_modification_mutex_.lock();
       if (as_->isPreemptRequested()) {
         terminate_episode_ = true;
-        as_->setAborted();
+        utexas_guidance_msgs::MultiRobotNavigationResult result;
+        result.success = false;
+        result.reward = system_reward_;
+        as_->setAborted(result);
         break;
       }
       if (episode_completed_) {
-        as_->setSucceeded();
+        utexas_guidance_msgs::MultiRobotNavigationResult result;
+        result.success = true;
+        result.reward = system_reward_;
+        as_->setSucceeded(result);
         break;
       }
       episode_modification_mutex_.unlock();
@@ -386,6 +393,8 @@ namespace utexas_guidance_ros {
                    time_since_wait_start.total_milliseconds() > system_state_.requests[0].wait_time_left * 1000)) {
                 if (next_loc == goal_node_id_) {
                   ROS_INFO_STREAM("Reached destination!");
+                  system_state_.requests[0].loc_node = next_loc;
+                  getTransformedSystemState(); // To accumulate reward.
                   // TODO maybe do something special here if a robot is leading the person.
                   for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
                     if (system_state_.robots[robot_idx].help_destination != utexas_guidance::NONE) {
@@ -460,9 +469,11 @@ namespace utexas_guidance_ros {
                 // Perform the deterministic transition as per the model
                 utexas_guidance::State next_state;
                 // Note that the RNG won't be used as it is a deterministic action.
+                float unused_reward;
                 takeAction(system_state_, 
                            action, 
-                           next_state);
+                           next_state,
+                           unused_reward);
 
                 // If a robot was assigned a task, and it is not exactly at the location it was at, then reset the nav
                 // task.
@@ -477,7 +488,8 @@ namespace utexas_guidance_ros {
                 /* This is a state in the MCTS search tree that corresponds to the current system state. */
                 takeAction(mcts_state_,
                            action,
-                           next_state);
+                           next_state,
+                           unused_reward);
 
                 // Move the root node of the planner along.
                 utexas_guidance::State::ConstPtr search_state_ptr(new utexas_guidance::State(mcts_state_));
@@ -490,20 +502,24 @@ namespace utexas_guidance_ros {
                 mcts_state_ = next_state;
               } else {
                 // Let's switch to non-deterministic transition logic.
-                ROS_WARN_STREAM("Restart called!");
+                ROS_INFO_STREAM("Wait called!");
                 mcts_search_start_state_ = system_state_;
                 wait_action_next_states_.clear();
+                wait_action_next_rewards_.clear();
                 for (int i = 0; i < 100; ++i) {
                   // Perform the deterministic transition as per the model
+                  float reward;
                   utexas_guidance::State next_state;
                   takeAction(system_state_, 
                              action, 
-                             next_state);
+                             next_state,
+                             reward);
                   wait_action_next_states_.insert(next_state);
+                  wait_action_next_rewards_[next_state] = reward;
                 }
-                ROS_WARN_STREAM("Expecting the following possible next states after wait action: ");
+                ROS_INFO_STREAM("Expecting the following possible next states after wait action: ");
                 BOOST_FOREACH(const utexas_guidance::State& ns, wait_action_next_states_) {
-                  ROS_WARN_STREAM("  " << ns);
+                  ROS_INFO_STREAM("  " << ns << "with reward: " << wait_action_next_rewards_[ns]);
                 }
                 wait_action_start_time_ = boost::posix_time::microsec_clock::local_time();
                 break;
@@ -702,12 +718,16 @@ namespace utexas_guidance_ros {
       getAllActions(system_state_, current_state_actions);
       std::set<utexas_guidance::State> candidates;
       BOOST_FOREACH(const utexas_guidance::State& next_state, wait_action_next_states_) {
+        if (next_state.requests.size() == 0 && system_state_.requests[0].loc_node == goal_node_id_) {
+          system_reward_ += wait_action_next_rewards_[next_state];
+          return utexas_guidance::State();
+        }
         if (next_state.requests[0].loc_node == system_state_.requests[0].loc_node) {
           candidates.insert(next_state);
         }
       }
 
-      ROS_WARN_STREAM("The size of candidate next states is " << candidates.size());
+      ROS_INFO_STREAM("The size of candidate next states is " << candidates.size());
 
       // TODO you could still probably do this better!
       // Make sure that changing robot values won't change the set of actions.
@@ -733,8 +753,9 @@ namespace utexas_guidance_ros {
         std::vector<utexas_guidance::Action> temp_state_actions;
         getAllActions(temp_state, temp_state_actions);
         if (current_state_actions == temp_state_actions) {
-          ROS_WARN_STREAM("Close candidate " << next_state << " found!");
-          ROS_WARN_STREAM("  Constructing state " << temp_state << " from this candidate to search in old tree!");
+          ROS_INFO_STREAM("Close candidate " << next_state << " found!");
+          ROS_INFO_STREAM("  Constructing state " << temp_state << " from this candidate to search in old tree!");
+          system_reward_ += wait_action_next_rewards_[next_state];
           ask_state = temp_state;
           break;
         } else {
@@ -751,10 +772,10 @@ namespace utexas_guidance_ros {
 
   void RobotNavigator::takeAction(const utexas_guidance::State& state, 
                                   const utexas_guidance::Action& action,
-                                  utexas_guidance::State& next_state) {
+                                  utexas_guidance::State& next_state,
+                                  float& reward) {
     
     // TODO This reward should go somewhere.
-    float unused_reward = 0.0f;
     utexas_planning::State::ConstPtr state_ptr(new utexas_guidance::State(state));
     utexas_planning::Action::ConstPtr action_ptr(new utexas_guidance::Action(action));
     utexas_planning::State::ConstPtr next_state_ptr;
@@ -764,7 +785,7 @@ namespace utexas_guidance_ros {
 
     model_->takeAction(state_ptr,
                        action_ptr,
-                       unused_reward,
+                       reward,
                        utexas_planning::RewardMetrics::Ptr(),
                        next_state_ptr,
                        unused_depth_count,

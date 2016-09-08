@@ -85,7 +85,8 @@ namespace utexas_guidance_ros {
 
       void takeAction(const utexas_guidance::State& state, 
                       const utexas_guidance::Action& action,
-                      utexas_guidance::State& next_state);
+                      utexas_guidance::State& next_state,
+                      float& reward);
 
       void getAllActions(const utexas_guidance::State& state,
                          std::vector<utexas_guidance::Action>& actions);
@@ -104,6 +105,7 @@ namespace utexas_guidance_ros {
       bool terminate_episode_;
       bool at_episode_start_;
       bool terminate_navigator_;
+      float system_reward_;
 
       int goal_node_id_;
       int pause_robot_;
@@ -112,6 +114,7 @@ namespace utexas_guidance_ros {
       utexas_guidance::State mcts_search_start_state_;
       boost::posix_time::ptime wait_action_start_time_;
       std::set<utexas_guidance::State> wait_action_next_states_;
+      std::map<utexas_guidance::State, float> wait_action_next_rewards_;
 
       boost::shared_ptr<boost::thread> controller_thread_;
       void runControllerThread();

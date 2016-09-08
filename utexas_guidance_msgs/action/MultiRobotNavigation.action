@@ -2,5 +2,6 @@ int32 goal_node_id
 string solver_alias
 ---
 bool success
+float32 reward
 string message # in case of failure
 ---
