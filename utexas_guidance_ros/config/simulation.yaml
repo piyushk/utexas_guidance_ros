@@ -5,7 +5,7 @@ robots:
     location: [24.25, 23.2, 3.14]
   - name: bender
     location: [45.35, 8.55, 3.14]
-  # - name: clamps
-  #   location: [1.3, 8.55, 0.0]
-  # - name: calculon
-  #   location: [15.95, 1.3, 0.0]
+  - name: clamps
+    location: [1.3, 8.55, 0.0]
+  - name: calculon
+    location: [15.95, 1.3, 0.0]

@@ -1,4 +1,4 @@
-solver_alias: SingleRobot
+solver_alias: MCTS
 problems:
   - start_robot_idx: 0
     goal_idx: 42

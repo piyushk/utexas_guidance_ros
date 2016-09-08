@@ -86,7 +86,7 @@ namespace utexas_guidance_ros {
     }
 
     robot_service_task_start_time_.resize(num_robots);
-    robot_command_status_.resize(num_robots, INITIALIZED);
+    robot_command_status_.resize(num_robots, AT_SERVICE_TASK_LOCATION);
 
     for (int i = 0; i < num_robots; ++i) {
       const std::string &robot_name = available_robot_list_[i];
@@ -264,6 +264,7 @@ namespace utexas_guidance_ros {
               if (robot_command_status_[robot_idx] == GOING_TO_HELP_DESTINATION_LOCATION) {
                 robot_command_status_[robot_idx] = HELP_DESTINATION_NAVIGATION_FAILED;
               } else if (robot_command_status_[robot_idx] == GOING_TO_SERVICE_TASK_LOCATION) {
+                std::cout << "1" << std::endl;
                 robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
               }
               // else {
@@ -400,6 +401,9 @@ namespace utexas_guidance_ros {
                     if (system_state_.robots[robot_idx].help_destination != utexas_guidance::NONE) {
                       system_state_.robots[robot_idx].help_destination = utexas_guidance::NONE;
                     }
+                    utexas_guidance_msgs::UpdateGuidanceGui srv;
+                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ALLDONE;
+                    robot_gui_controller_[robot_idx]->call(srv);
                   }
                   episode_completed_ = true;
                   episode_in_progress_ = false;
@@ -462,9 +466,11 @@ namespace utexas_guidance_ros {
                   srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
                   if (isRobotExactlyAt(system_state_.robots[action.robot_id], action.node)) {
                     srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT;
+                    /* robot_command_status_[action.robot_id] = AT_HELP_DESTINATION_LOCATION; */
+                  } else {
+                    /* robot_command_status_[action.robot_id] = SERVICE_TASK_NAVIGATION_RESET; */
                   }
                   robot_gui_controller_[action.robot_id]->call(srv);
-                  robot_command_status_[action.robot_id] = SERVICE_TASK_NAVIGATION_RESET;
                 }
                 // Perform the deterministic transition as per the model
                 utexas_guidance::State next_state;
@@ -479,7 +485,23 @@ namespace utexas_guidance_ros {
                 // task.
                 for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
                   if (system_state_.robots[robot_idx].help_destination != next_state.robots[robot_idx].help_destination) {
-                    robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
+                    if (system_state_.robots[robot_idx].help_destination == utexas_guidance::NONE) {
+                      if (!isRobotExactlyAt(system_state_.robots[robot_idx], system_state_.robots[robot_idx].tau_d)) {
+
+                        std::cout << "2" << std::endl;
+                        robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
+                      } else {
+                        robot_command_status_[robot_idx] = AT_SERVICE_TASK_LOCATION;
+                      }
+                    } else {
+                      if (!isRobotExactlyAt(system_state_.robots[robot_idx], system_state_.robots[robot_idx].help_destination)) {
+
+                std::cout << "3" << std::endl;
+                        robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
+                      } else {
+                        robot_command_status_[robot_idx] = AT_HELP_DESTINATION_LOCATION;
+                      }
+                    }
                   }
                 }
 
@@ -532,8 +554,11 @@ namespace utexas_guidance_ros {
             /* ROS_WARN_STREAM("  idx: " << robot_idx); */
             utexas_guidance::RobotState &rs = system_state_.robots[robot_idx];
 
+            std::cout << "ROBOT " << robot_idx << " command status: " << robot_command_status_[robot_idx] << std::endl;
             // Check if a robot service task is still being initialized, or was just completed.
             if (robot_command_status_[robot_idx] == INITIALIZED) {
+
+                std::cout << "4" << std::endl;
               robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
               if (!episode_in_progress_) {
                 utexas_guidance_msgs::UpdateGuidanceGui srv;
@@ -559,6 +584,8 @@ namespace utexas_guidance_ros {
                 // This service task is now complete. Get a new task.
                 model_->getUnderlyingTaskModel()->generateNewTaskForRobot(robot_idx, rs, *master_rng_);
                 if (robot_command_status_[robot_idx] == AT_SERVICE_TASK_LOCATION) {
+
+                  std::cout << "5" << std::endl;
                   robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
                   if (!episode_in_progress_) {
                     utexas_guidance_msgs::UpdateGuidanceGui srv;
@@ -649,7 +676,7 @@ namespace utexas_guidance_ros {
     // ROS_WARN_STREAM("Human's current location: " << current_pt.get<0>() << "," << current_pt.get<1>() <<
     //                 " and next_pt " << next_pt.get<0>() << "," << next_pt.get<1>());
     // ROS_WARN_STREAM("  Diff in magnitude: " << boost::geometry::distance(next_pt, human_pt));
-    if (boost::geometry::distance(next_pt, human_pt) <= 2.0f) {
+    if (boost::geometry::distance(next_pt, human_pt) <= boost::geometry::distance(current_pt, next_pt) / 3.0f) {
       next_loc = next_graph_id;
     } else {
       next_loc = current_loc;
@@ -662,8 +689,9 @@ namespace utexas_guidance_ros {
     v = utexas_guidance::getClosestEdgeOnGraphGivenId(pt, graph_, u);
     utexas_guidance::Point3f u_loc = utexas_guidance::getLocationFromGraphId(u, graph_);
     utexas_guidance::Point3f v_loc = utexas_guidance::getLocationFromGraphId(v, graph_);
-    p = boost::geometry::distance(pt, u_loc) /
-      (boost::geometry::distance(pt, u_loc) + boost::geometry::distance(pt, v_loc));
+    p = 0.0f;
+    // boost::geometry::distance(pt, u_loc) /
+    //   (boost::geometry::distance(pt, u_loc) + boost::geometry::distance(pt, v_loc));
   }
 
   void RobotNavigator::determineStartLocation(const geometry_msgs::Pose &pose, int &u) {
@@ -722,7 +750,7 @@ namespace utexas_guidance_ros {
           system_reward_ += wait_action_next_rewards_[next_state];
           return utexas_guidance::State();
         }
-        if (next_state.requests[0].loc_node == system_state_.requests[0].loc_node) {
+        if (next_state.requests.size() != 0 && next_state.requests[0].loc_node == system_state_.requests[0].loc_node) {
           candidates.insert(next_state);
         }
       }

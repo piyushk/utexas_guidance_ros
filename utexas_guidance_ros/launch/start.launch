@@ -33,14 +33,4 @@
     <param name="font_size" value="12" />
   </node>
 
-  <!-- Launch the base robot navigator -->
-  <node required="true" name="robot_navigator" pkg="utexas_guidance_ros" type="robot_navigator_exp"
-    launch-prefix="gdb -ex run --args"
-    >
-    <param name="experiment_file" value="$(find utexas_guidance_ros)/exp/exp.yaml" />  
-    <param name="problems_file" value="$(find utexas_guidance_ros)/exp/map_problems.yaml" />
-    <param name="config_file" value="$(find utexas_guidance_ros)/config/simulation.yaml" />
-    <param name="only_problem_idx" value="$(arg problem_idx)" />
-  </node>
-
 </launch>

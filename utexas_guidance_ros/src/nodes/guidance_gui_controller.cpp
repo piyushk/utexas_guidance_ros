@@ -150,12 +150,23 @@ void showArrowToDestination(const geometry_msgs::Pose &orientation_destination) 
 
 }
 
+void showAllDoneImage() {
+  cv::Mat image = cv::Mat::zeros(120, 160, CV_8UC3);
+  // if (!robot_name.empty()) {
+  //   cv::putText(image, ("Hi! I'm " + robot_name), cv::Point2f(10, 25),
+  //               CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 215, 255), 2);
+  // }
+  cv::putText(image, "All Done!", cv::Point2f(10, image.rows/2-5),
+              CV_FONT_HERSHEY_SIMPLEX, 0.90, cv::Scalar(0, 215, 255), 4);
+  displayImage(image);
+}
+
 void showFollowMeImage() {
   cv::Mat image = cv::Mat::zeros(120, 160, CV_8UC3);
-  if (!robot_name.empty()) {
-    cv::putText(image, ("Hi! I'm " + robot_name), cv::Point2f(10, 25),
-                CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 215, 255), 2);
-  }
+  // if (!robot_name.empty()) {
+  //   cv::putText(image, ("Hi! I'm " + robot_name), cv::Point2f(10, 25),
+  //               CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 215, 255), 2);
+  // }
   cv::putText(image, "Follow Me!", cv::Point2f(10, image.rows/2-5),
               CV_FONT_HERSHEY_SIMPLEX, 0.90, cv::Scalar(0, 215, 255), 4);
   displayImage(image);
@@ -163,10 +174,10 @@ void showFollowMeImage() {
 
 void showPleaseWaitImage() {
   cv::Mat image = cv::Mat::zeros(120, 160, CV_8UC3);
-  if (!robot_name.empty()) {
-    cv::putText(image, ("Hi! I'm " + robot_name), cv::Point2f(10, 25),
-                CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 215, 255), 2);
-  }
+  // if (!robot_name.empty()) {
+  //   cv::putText(image, ("Hi! I'm " + robot_name), cv::Point2f(10, 25),
+  //               CV_FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 215, 255), 2);
+  // }
   cv::putText(image, "Please Wait!", cv::Point2f(10, image.rows/2-5),
               CV_FONT_HERSHEY_SIMPLEX, 0.75, cv::Scalar(0, 215, 255), 3);
   displayImage(image);
@@ -213,6 +224,11 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT:
       showPleaseWaitImage();
       displayMessage("Please wait!");
+      system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
+      break;
+    case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ALLDONE:
+      showAllDoneImage();
+      displayMessage("All Done!");
       system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
       break;
   };

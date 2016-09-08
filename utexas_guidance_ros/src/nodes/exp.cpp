@@ -12,6 +12,8 @@
 #include <actionlib/client/simple_action_client.h>
 #include <utexas_guidance_msgs/MultiRobotNavigationAction.h>
 
+#include <utexas_planning/common/record_writer.h>
+
 using namespace utexas_guidance_ros;
 
 bool waiting_for_robots = true;
@@ -40,8 +42,8 @@ geometry_msgs::PoseWithCovarianceStamped getStartPoseWithCovariance(int robot_id
 geometry_msgs::Pose getPoseBehindRobot(int robot_idx) {
   geometry_msgs::Pose retval = robot_start_locations[robot_idx];
   float yaw = float(tf::getYaw(retval.orientation));
-  retval.position.x -= 0.8f * cosf(yaw);
-  retval.position.z -= 0.8f * sinf(yaw);
+  retval.position.x -= 0.7f * cosf(yaw);
+  retval.position.z -= 0.7f * sinf(yaw);
   return retval;
 }
 
@@ -56,7 +58,7 @@ geometry_msgs::Pose getPose(float x, float y, float yaw) {
   return retval;
 }
 
-void displayMessage(const std::string& msg,
+void displayMessageWithPause(const std::string& msg,
                     ros::ServiceClient& gui_service) {
   bwi_msgs::QuestionDialog srv;
   srv.request.type = bwi_msgs::QuestionDialogRequest::CHOICE_QUESTION;
@@ -65,11 +67,15 @@ void displayMessage(const std::string& msg,
   srv.request.options[0] = "Continue!";
   srv.request.timeout = bwi_msgs::QuestionDialogRequest::NO_TIMEOUT;
   gui_service.call(srv);
-  srv.request.type = bwi_msgs::QuestionDialogRequest::DISPLAY;
-  srv.request.message = "Follow the robot's advice to reach the destination!";
-  gui_service.call(srv);
 }
 
+void displayMessage(const std::string& msg,
+                    ros::ServiceClient& gui_service) {
+  bwi_msgs::QuestionDialog srv;
+  srv.request.type = bwi_msgs::QuestionDialogRequest::DISPLAY;
+  srv.request.message = msg;
+  gui_service.call(srv);
+}
 
 bool checkClosePoses(const geometry_msgs::Pose& p1, 
                      const geometry_msgs::Pose& p2, 
@@ -237,7 +243,8 @@ int main(int argc, char **argv) {
                    set_gazebo_model_client);
 
     // Wait for user to start experiment.
-    displayMessage("Start next experiment?", gui_service);
+    displayMessageWithPause("Start next experiment?", gui_service);
+    displayMessage("Follow the robots' advice to reach the goal location!", gui_service);
 
     for (int robot_idx = 0; robot_idx < num_total_robots; ++robot_idx) {
       robot_pose_pubilshers[robot_idx].publish(getStartPoseWithCovariance(robot_idx));
@@ -262,25 +269,52 @@ int main(int argc, char **argv) {
     boost::posix_time::ptime start_time = boost::posix_time::microsec_clock::local_time();
     boost::posix_time::time_duration time_since_start;
 
+    boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
     while (!mrn_client->getState().isDone() &&
            time_since_start.total_milliseconds() < 300000) {
       ros::spinOnce();
       time_since_start = boost::posix_time::microsec_clock::local_time() - start_time;
     }
 
+    std::vector<std::map<std::string, std::string> > records;
+    std::map<std::string, std::string> record;
+    record["problem_idx"] = boost::lexical_cast<std::string>(problem_idx);
+    record["problems_file"] = problems_file;
+    record["solver"] = solver_alias;
     if (!mrn_client->getState().isDone()) {
       // TODO get reward somehow before cancelling goal, or maybe not amortize this reward.
       mrn_client->cancelGoal();
-      displayMessage("Oh no! It looks like the robots were unable to help you. Let's proceed to the next problem!",
-                     gui_service);
+      if (problem_idx != problem_end_idx - 1) {
+        displayMessageWithPause("Oh no! It looks like the robots were unable to help you. Let's proceed to the next problem!",
+                                gui_service);
+      } else {
+        displayMessageWithPause("Oh no! It looks like the robots were unable to help you.", gui_service);
+      }
       ROS_INFO_STREAM("Accrued  " << mrn_client->getResult()->reward << " reward in " << time_since_start.total_milliseconds() << " ms.");
+      record["success"] = boost::lexical_cast<std::string>(false);
+      record["estimated_reward"] = boost::lexical_cast<std::string>(mrn_client->getResult()->reward);
+      record["time"] = boost::lexical_cast<std::string>(time_since_start.total_milliseconds() / 1000.0f);
     } else {
-      displayMessage("Yay! You found the destination. Let's proceed to the next problem!",
-                     gui_service);
+
+      if (problem_idx != problem_end_idx - 1) {
+        displayMessageWithPause("Yay! You found the goal location. Let's proceed to the next problem!",
+                                gui_service);
+      } else {
+        displayMessageWithPause("Yay! You found the goal location.", gui_service);
+      }
       ROS_INFO_STREAM("Accrued  " << mrn_client->getResult()->reward << " reward in " << time_since_start.total_milliseconds() << " ms.");
+      record["success"] = boost::lexical_cast<std::string>(true);
+      record["estimated_reward"] = boost::lexical_cast<std::string>(mrn_client->getResult()->reward);
+      record["time"] = boost::lexical_cast<std::string>(time_since_start.total_milliseconds() / 1000.0f);
     }
 
     mrn_client.reset();
+
+    records.push_back(record);
+    utexas_planning::writeRecordsAsCSV("/home/piyushk/guidance_ws/result." + 
+                                       boost::lexical_cast<std::string>(problem_idx) + "." + 
+                                       boost::lexical_cast<std::string>(time_since_start.total_milliseconds()), 
+                      records);
 
     // Results
     // TODO: you'll need to figure out a way of getting the MDP reward back.

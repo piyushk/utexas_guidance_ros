@@ -21,13 +21,16 @@ class OdomToPoseConverter:
             if msg.header.stamp - self.last_pub_time < rospy.Duration(0.5):
                 return
 
-        error_x = numpy.random.normal(scale=0.2)
-        error_x = max(error_x, -0.5)
-        error_x = min(error_x, 0.5)
+        error_x = 0
+        error_y = 0
 
-        error_y = numpy.random.normal(scale=0.2)
-        error_y = max(error_y, -0.5)
-        error_y = min(error_y, 0.5)
+        # error_x = numpy.random.normal(scale=0.2)
+        # error_x = max(error_x, -0.5)
+        # error_x = min(error_x, 0.5)
+
+        # error_y = numpy.random.normal(scale=0.2)
+        # error_y = max(error_y, -0.5)
+        # error_y = min(error_y, 0.5)
 
         msg = PoseWithCovarianceStamped(msg.header, msg.pose) 
         msg.pose.pose.position.x += error_x
