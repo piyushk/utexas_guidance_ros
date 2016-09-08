@@ -64,7 +64,7 @@ void monitorEpisodeStartThread() {
       ROS_INFO_NAMED("guidance_gui_controller", "req timed out, sending ep start request.");
       utexas_guidance_msgs::MultiRobotNavigationGoal goal;
       goal.goal_node_id = goal_graph_ids[srv.response.index];
-      goal.solver_alias = "SingleRobot";
+      goal.solver_alias = "MCTS";
       mrn_client->sendGoal(goal);
     } else {
       // Do nothing. The request probably got preempted.

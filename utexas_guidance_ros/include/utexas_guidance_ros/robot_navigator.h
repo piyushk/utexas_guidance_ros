@@ -68,6 +68,7 @@ namespace utexas_guidance_ros {
       /* Once WAIT is returned, clean the MCTS state - DOWNSTREAM! */
       utexas_guidance::Action getBestAction();
 
+      utexas_guidance::State getTransformedSystemState();
       /* void getNextTaskForRobot(int robot_id, RobotState &rs); */
 
     protected:
@@ -92,6 +93,7 @@ namespace utexas_guidance_ros {
       /* bwi_mapper::Point2f getLocationFromGraphId(int destination); */
 
       utexas_guidance::State system_state_;
+      utexas_guidance::State mcts_state_;
       boost::mutex episode_modification_mutex_;
 
       boost::shared_ptr<ros::NodeHandle> nh_;

@@ -114,6 +114,7 @@ namespace utexas_guidance_ros {
       model_->getUnderlyingTaskModel()->generateNewTaskForRobot(i, rs, *master_rng_);
 
       rs.help_destination = utexas_guidance::NONE;
+      rs.is_leading_person = false;
 
       system_state_.robots.push_back(rs);
     }
@@ -265,6 +266,8 @@ namespace utexas_guidance_ros {
         if (all_robot_locations_available) {
           bool its_decision_time = false;
           if (episode_in_progress_ && !terminate_episode_) {
+
+            utexas_guidance::State ask_state;
             if (at_episode_start_) {
               // Ensure that all robots switch to a scenario where they are no longer showing anything.
               utexas_guidance_msgs::UpdateGuidanceGui srv;
@@ -280,10 +283,11 @@ namespace utexas_guidance_ros {
               system_state_.requests.resize(1);
               system_state_.requests[0].request_id = utexas_guidance::generateNewRequestId();
               system_state_.requests[0].loc_node = system_state_.requests[0].loc_prev = loc;
-              system_state_.requests[0].loc_p = 0.0f;
+              system_state_.requests[0].loc_p = 1.0f;
               system_state_.requests[0].assist_loc = utexas_guidance::NONE;
               system_state_.requests[0].assist_type = utexas_guidance::NONE;
               system_state_.requests[0].goal = goal_node_id_;
+              system_state_.requests[0].is_new_request = true;
 
               system_state_.actions_since_wait.clear();
 
@@ -328,14 +332,9 @@ namespace utexas_guidance_ros {
                 robot_gui_controller_[colocated_robot_id]->call(srv);
               }
 
-              if (colocated_robot_id != utexas_guidance::NONE) {
-                utexas_guidance_msgs::UpdateGuidanceGui srv;
-                srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
-                robot_gui_controller_[colocated_robot_id]->call(srv);
-              }
-
               at_episode_start_ = false;
               its_decision_time = true;
+              mcts_state_ = system_state_;
             } else {
               /* ROS_WARN_STREAM("2b"); */
               int next_loc = system_state_.requests[0].loc_node;
@@ -360,9 +359,9 @@ namespace utexas_guidance_ros {
                   if (human_robot_distance <= 2.0f) {
                     next_loc = prev_action.node;
                     // Clear the previous robot's GUI.
-                    utexas_guidance_msgs::UpdateGuidanceGui srv;
-                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
-                    robot_gui_controller_[prev_action.robot_id]->call(srv);
+                    // utexas_guidance_msgs::UpdateGuidanceGui srv;
+                    // srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+                    // robot_gui_controller_[prev_action.robot_id]->call(srv);
                   }
                 }
               } else {
@@ -370,8 +369,14 @@ namespace utexas_guidance_ros {
               }
 
               /* ROS_WARN_STREAM("2c"); */
+              boost::posix_time::time_duration time_since_wait_start =
+                boost::posix_time::microsec_clock::local_time() - wait_action_start_time_;
 
-              if (next_loc != system_state_.requests[0].loc_node) {
+              /* std::cout << next_loc << std::endl; */
+
+              if (next_loc != system_state_.requests[0].loc_node ||
+                  (system_state_.requests[0].wait_time_left != 0.0f && 
+                   time_since_wait_start.total_milliseconds() > system_state_.requests[0].wait_time_left * 1000)) {
                 if (next_loc == goal_node_id_) {
                   ROS_INFO_STREAM("Reached destination!");
                   // TODO maybe do something special here if a robot is leading the person.
@@ -387,7 +392,16 @@ namespace utexas_guidance_ros {
                   system_state_.requests[0].loc_node = next_loc;
                   system_state_.requests[0].assist_type = utexas_guidance::NONE;
                   system_state_.requests[0].assist_loc = utexas_guidance::NONE;
+                  system_state_.requests[0].wait_time_left = 0.0f;
+                  system_state_.requests[0].is_new_request = false;
+                  for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
+                    if (system_state_.robots[robot_idx].is_leading_person) {
+                      system_state_.robots[robot_idx].help_destination = utexas_guidance::NONE;
+                      system_state_.robots[robot_idx].is_leading_person = false;
+                    }
+                  }
                   system_state_.actions_since_wait.clear();
+                  mcts_state_ = getTransformedSystemState();
                   its_decision_time = true;
                 }
               }
@@ -400,6 +414,7 @@ namespace utexas_guidance_ros {
             for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
               if (system_state_.robots[robot_idx].help_destination != utexas_guidance::NONE) {
                 system_state_.robots[robot_idx].help_destination = utexas_guidance::NONE;
+                system_state_.robots[robot_idx].is_leading_person = false;
               }
             }
           }
@@ -407,6 +422,13 @@ namespace utexas_guidance_ros {
           /* ROS_WARN_STREAM("3"); */
           if (its_decision_time) {
             while (true) {
+              ROS_INFO_STREAM_NAMED("base_robot_navigator", "taking action at system state: " << system_state_);
+              /* std::vector<utexas_guidance::Action> actions; */
+              /* getAllActions(system_state_, actions); */
+              // BOOST_FOREACH(utexas_guidance::Action& action, actions) {
+              //   ROS_INFO_STREAM_NAMED("base_robot_navigator", "  action: " << action);
+              // }
+
               utexas_guidance::Action action = getBestAction();
               ROS_INFO_STREAM_NAMED("base_robot_navigator", "taking action " << action);
               if (action.type != utexas_guidance::WAIT) {
@@ -444,9 +466,25 @@ namespace utexas_guidance_ros {
                 }
 
                 system_state_ = next_state;
+
+                /* This is a state in the MCTS search tree that corresponds to the current system state. */
+                takeAction(mcts_state_,
+                           action,
+                           next_state);
+
+                // Move the root node of the planner along.
+                utexas_guidance::State::ConstPtr search_state_ptr(new utexas_guidance::State(mcts_state_));
+                utexas_guidance::Action::ConstPtr action_ptr(new utexas_guidance::Action(action));
+                // TODO make sure that the planning isn't getting reset.
+                solver_->performPostActionProcessing(search_state_ptr,
+                                                     action_ptr,
+                                                     0.0f);
+
+                mcts_state_ = next_state;
               } else {
                 // Let's switch to non-deterministic transition logic.
                 ROS_WARN_STREAM("Restart called!");
+                mcts_search_start_state_ = system_state_;
                 wait_action_next_states_.clear();
                 for (int i = 0; i < 100; ++i) {
                   // Perform the deterministic transition as per the model
@@ -479,9 +517,10 @@ namespace utexas_guidance_ros {
                 srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
                 robot_gui_controller_[robot_idx]->call(srv);
               }
-            } else if (robot_command_status_[robot_idx] == AT_SERVICE_TASK_LOCATION) {
+            } else if ((robot_command_status_[robot_idx] == AT_HELP_DESTINATION_LOCATION && isRobotExactlyAt(rs, rs.tau_d)) ||
+                       robot_command_status_[robot_idx] == AT_SERVICE_TASK_LOCATION) {
               if (rs.tau_t == 0.0f) {
-                ROS_DEBUG_STREAM_NAMED("RobotNavigator", available_robot_list_[robot_idx] << " reached service task location.");
+                ROS_DEBUG_STREAM_NAMED("RobotNavigator", available_robot_list_[robot_idx] << " is at service task location.");
                 rs.tau_t = 1.0f / controller_thread_frequency_;
                 // The second term tries to average for discretization errors. TODO think about this some more when
                 // not sleepy.
@@ -496,11 +535,13 @@ namespace utexas_guidance_ros {
               if (rs.tau_t > rs.tau_total_task_time) {
                 // This service task is now complete. Get a new task.
                 model_->getUnderlyingTaskModel()->generateNewTaskForRobot(robot_idx, rs, *master_rng_);
-                robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
-                if (!episode_in_progress_) {
-                  utexas_guidance_msgs::UpdateGuidanceGui srv;
-                  srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
-                  robot_gui_controller_[robot_idx]->call(srv);
+                if (robot_command_status_[robot_idx] == AT_SERVICE_TASK_LOCATION) {
+                  robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
+                  if (!episode_in_progress_) {
+                    utexas_guidance_msgs::UpdateGuidanceGui srv;
+                    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START;
+                    robot_gui_controller_[robot_idx]->call(srv);
+                  }
                 }
               }
             }
@@ -548,10 +589,10 @@ namespace utexas_guidance_ros {
         boost::this_thread::sleep(boost::posix_time::milliseconds(1000.0f/controller_thread_frequency_));
       } else {
 
-        utexas_guidance::State::ConstPtr system_state_ptr(new utexas_guidance::State(system_state_));
+        utexas_guidance::State::ConstPtr search_state_ptr(new utexas_guidance::State(mcts_search_start_state_));
         utexas_guidance::Action::ConstPtr wait_action(new utexas_guidance::Action(utexas_guidance::WAIT));
         // TODO make sure that the planning isn't getting reset.
-        solver_->performPostActionProcessing(system_state_ptr,
+        solver_->performPostActionProcessing(search_state_ptr,
                                              wait_action,
                                              1.0f / controller_thread_frequency_);
         //boost::this_thread::sleep(boost::posix_time::milliseconds(1000.0f/controller_thread_frequency_));
@@ -582,9 +623,10 @@ namespace utexas_guidance_ros {
     int next_graph_id = utexas_guidance::getClosestEdgeOnGraphGivenId(human_pt, graph_, current_loc);
     utexas_guidance::Point3f current_pt = utexas_guidance::getLocationFromGraphId(current_loc, graph_);
     utexas_guidance::Point3f next_pt = utexas_guidance::getLocationFromGraphId(next_graph_id, graph_);
-    // ROS_WARN_STREAM("Human's current location: " << current_pt << " and next_pt " << next_pt);
-    // ROS_WARN_STREAM("  Diff in magnitude: " << utexas_guidance::getMagnitude(next_pt - human_pt));
-    if (boost::geometry::distance(current_pt, next_pt) <= 2.0f) {
+    // ROS_WARN_STREAM("Human's current location: " << current_pt.get<0>() << "," << current_pt.get<1>() <<
+    //                 " and next_pt " << next_pt.get<0>() << "," << next_pt.get<1>());
+    // ROS_WARN_STREAM("  Diff in magnitude: " << boost::geometry::distance(next_pt, human_pt));
+    if (boost::geometry::distance(next_pt, human_pt) <= 2.0f) {
       next_loc = next_graph_id;
     } else {
       next_loc = current_loc;
@@ -636,6 +678,14 @@ namespace utexas_guidance_ros {
   }
 
   utexas_guidance::Action RobotNavigator::getBestAction() {
+    utexas_planning::State::ConstPtr state_ptr(new utexas_guidance::State(mcts_state_));
+    utexas_planning::Action::ConstPtr action_ptr = solver_->getBestAction(state_ptr);
+    utexas_guidance::Action::ConstPtr action_derived_ptr = 
+      boost::dynamic_pointer_cast<const utexas_guidance::Action>(action_ptr);
+    return *action_derived_ptr;
+  }
+
+  utexas_guidance::State RobotNavigator::getTransformedSystemState() {
 
     utexas_guidance::State ask_state = system_state_;
     if (wait_action_next_states_.size() != 0) {
@@ -657,39 +707,39 @@ namespace utexas_guidance_ros {
       BOOST_FOREACH(const utexas_guidance::State& next_state, candidates) {
         utexas_guidance::State temp_state = ask_state;
         for (int robot_idx = 0; robot_idx < next_state.robots.size(); ++robot_idx) {
-          temp_state.robots[robot_idx].loc_u =
-            next_state.robots[robot_idx].loc_u;
-          temp_state.robots[robot_idx].loc_v =
-            next_state.robots[robot_idx].loc_v;
-          temp_state.robots[robot_idx].loc_p =
-            next_state.robots[robot_idx].loc_p;
-          temp_state.robots[robot_idx].tau_t =
-            next_state.robots[robot_idx].tau_t;
-          temp_state.robots[robot_idx].tau_u =
-            next_state.robots[robot_idx].tau_u;
-          temp_state.robots[robot_idx].tau_d =
-            next_state.robots[robot_idx].tau_d;
-          temp_state.robots[robot_idx].tau_total_task_time =
-            next_state.robots[robot_idx].tau_total_task_time;
+          temp_state.robots[robot_idx] = next_state.robots[robot_idx];
+          // .loc_u =
+          //   next_state.robots[robot_idx].loc_u;
+          // temp_state.robots[robot_idx].loc_v =
+          //   next_state.robots[robot_idx].loc_v;
+          // temp_state.robots[robot_idx].loc_p =
+          //   next_state.robots[robot_idx].loc_p;
+          // temp_state.robots[robot_idx].tau_t =
+          //   next_state.robots[robot_idx].tau_t;
+          // temp_state.robots[robot_idx].tau_u =
+          //   next_state.robots[robot_idx].tau_u;
+          // temp_state.robots[robot_idx].tau_d =
+          //   next_state.robots[robot_idx].tau_d;
+          // temp_state.robots[robot_idx].tau_total_task_time =
+          //   next_state.robots[robot_idx].tau_total_task_time;
         }
         std::vector<utexas_guidance::Action> temp_state_actions;
         getAllActions(temp_state, temp_state_actions);
         if (current_state_actions == temp_state_actions) {
           ROS_WARN_STREAM("Close candidate " << next_state << " found!");
-          ROS_WARN_STREAM("  Constructing stsate " << temp_state << " from this candidate!");
+          ROS_WARN_STREAM("  Constructing state " << temp_state << " from this candidate to search in old tree!");
           ask_state = temp_state;
           break;
         } else {
           ROS_WARN("Resetting values changed action space!");
+          BOOST_FOREACH(utexas_guidance::Action& action, temp_state_actions) {
+            ROS_WARN_STREAM("  " << action);
+          }
         }
       }
     }
+    return ask_state;
 
-    utexas_planning::State::ConstPtr state_ptr(new utexas_guidance::State(ask_state));
-    utexas_planning::Action::ConstPtr action_ptr = solver_->getBestAction(state_ptr);
-    utexas_guidance::Action::ConstPtr action_derived_ptr = 
-      boost::dynamic_pointer_cast<const utexas_guidance::Action>(action_ptr);
-    return *action_derived_ptr;
   }
 
   void RobotNavigator::takeAction(const utexas_guidance::State& state, 

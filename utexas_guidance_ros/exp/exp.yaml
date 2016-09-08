@@ -1,11 +1,47 @@
 models:
   - name: utexas_guidance::GuidanceModel
     initial_num_requests: 1
+    initial_planning_time: 0.0
     graph_file: /home/piyushk/guidance_ws/src/utexas_guidance/map_config/map/graph.yaml
     task_model_file: /home/piyushk/guidance_ws/src/utexas_guidance/map_config/map/fixed_tasks.yaml
     task_utility: 0.5
 planners:
   - name: utexas_guidance::SingleRobotSolver
-    alias: SingleRobot
     h0_wait_for_new_request: true
     sleep_for_timeout: true
+    alias: SingleRobot
+  - name: utexas_planning::MCTS
+    default_policy: utexas_guidance::SingleRobotSolver
+    max_depth: 300
+    uct_reward_bound: 500
+    backup_lambda_value: 0.0
+    model: 
+      name: utexas_guidance::GuidanceModel
+      initial_num_requests: 1
+      graph_file: /home/piyushk/utexas_planning/utexas_guidance/map_config/map/graph.yaml
+      task_model_file: /home/piyushk/utexas_planning/utexas_guidance/map_config/map/fixed_tasks.yaml
+      task_utility: 0.5
+      h0_wait_for_new_request: true
+      h1_max_assigned_robots: -2
+      h2_only_allow_adjacent_assignment: true
+      h3_force_assistance: true
+      h4_unhelpful_robot_penalty: 5.0
+    alias: MCTS
+  - name: utexas_planning::MCTS
+    default_policy: utexas_guidance::SingleRobotSolver
+    max_depth: 150
+    uct_reward_bound: 500
+    backup_lambda_value: 0.0
+    model: 
+      name: utexas_guidance::GuidanceModel
+      initial_num_requests: 1
+      graph_file: /home/piyushk/utexas_planning/utexas_guidance/map_config/map/graph.yaml
+      task_model_file: /home/piyushk/utexas_planning/utexas_guidance/map_config/map/fixed_tasks.yaml
+      task_utility: 0.5
+      h0_wait_for_new_request: true
+      h1_max_assigned_robots: -2
+      h2_only_allow_adjacent_assignment: true
+      h3_force_assistance: true
+      h4_unhelpful_robot_penalty: 5.0
+      is_deterministic: true
+    alias: MCTS-D

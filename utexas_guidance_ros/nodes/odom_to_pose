@@ -18,7 +18,7 @@ class OdomToPoseConverter:
 
     def handleOdomMsg(self, msg):
         if self.last_pub_time is not None:
-            if msg.header.stamp - self.last_pub_time < rospy.Duration(2):
+            if msg.header.stamp - self.last_pub_time < rospy.Duration(0.5):
                 return
 
         error_x = numpy.random.normal(scale=0.2)
