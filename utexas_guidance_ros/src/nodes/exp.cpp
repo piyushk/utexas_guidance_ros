@@ -269,7 +269,12 @@ int main(int argc, char **argv) {
     boost::posix_time::ptime start_time = boost::posix_time::microsec_clock::local_time();
     boost::posix_time::time_duration time_since_start;
 
-    boost::this_thread::sleep(boost::posix_time::milliseconds(2000));
+    // Don't check for completion in the first 20 seconds.
+    while (time_since_start.total_milliseconds() < 20000) {
+      ros::spinOnce();
+      time_since_start = boost::posix_time::microsec_clock::local_time() - start_time;
+    }
+
     while (!mrn_client->getState().isDone() &&
            time_since_start.total_milliseconds() < 300000) {
       ros::spinOnce();

@@ -264,7 +264,6 @@ namespace utexas_guidance_ros {
               if (robot_command_status_[robot_idx] == GOING_TO_HELP_DESTINATION_LOCATION) {
                 robot_command_status_[robot_idx] = HELP_DESTINATION_NAVIGATION_FAILED;
               } else if (robot_command_status_[robot_idx] == GOING_TO_SERVICE_TASK_LOCATION) {
-                std::cout << "1" << std::endl;
                 robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
               }
               // else {
@@ -485,18 +484,16 @@ namespace utexas_guidance_ros {
                 // task.
                 for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
                   if (system_state_.robots[robot_idx].help_destination != next_state.robots[robot_idx].help_destination) {
-                    if (system_state_.robots[robot_idx].help_destination == utexas_guidance::NONE) {
-                      if (!isRobotExactlyAt(system_state_.robots[robot_idx], system_state_.robots[robot_idx].tau_d)) {
+                    if (next_state.robots[robot_idx].help_destination == utexas_guidance::NONE) {
+                      if (!isRobotExactlyAt(next_state.robots[robot_idx], next_state.robots[robot_idx].tau_d)) {
 
-                        std::cout << "2" << std::endl;
                         robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
                       } else {
                         robot_command_status_[robot_idx] = AT_SERVICE_TASK_LOCATION;
                       }
                     } else {
-                      if (!isRobotExactlyAt(system_state_.robots[robot_idx], system_state_.robots[robot_idx].help_destination)) {
+                      if (!isRobotExactlyAt(next_state.robots[robot_idx], next_state.robots[robot_idx].help_destination)) {
 
-                std::cout << "3" << std::endl;
                         robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
                       } else {
                         robot_command_status_[robot_idx] = AT_HELP_DESTINATION_LOCATION;
@@ -554,11 +551,10 @@ namespace utexas_guidance_ros {
             /* ROS_WARN_STREAM("  idx: " << robot_idx); */
             utexas_guidance::RobotState &rs = system_state_.robots[robot_idx];
 
-            std::cout << "ROBOT " << robot_idx << " command status: " << robot_command_status_[robot_idx] << std::endl;
+            /* std::cout << "ROBOT " << robot_idx << " command status: " << robot_command_status_[robot_idx] << std::endl; */
             // Check if a robot service task is still being initialized, or was just completed.
             if (robot_command_status_[robot_idx] == INITIALIZED) {
 
-                std::cout << "4" << std::endl;
               robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
               if (!episode_in_progress_) {
                 utexas_guidance_msgs::UpdateGuidanceGui srv;
@@ -585,7 +581,6 @@ namespace utexas_guidance_ros {
                 model_->getUnderlyingTaskModel()->generateNewTaskForRobot(robot_idx, rs, *master_rng_);
                 if (robot_command_status_[robot_idx] == AT_SERVICE_TASK_LOCATION) {
 
-                  std::cout << "5" << std::endl;
                   robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
                   if (!episode_in_progress_) {
                     utexas_guidance_msgs::UpdateGuidanceGui srv;
