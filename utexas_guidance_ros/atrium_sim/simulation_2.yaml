@@ -1,0 +1,7 @@
+robots:
+  - name: marvin
+    location: [18.5, 29.5, 0.0]
+  - name: roberto
+    location: [57, 24.5, 0]
+  - name: bender
+    location: [57, 60, 0]

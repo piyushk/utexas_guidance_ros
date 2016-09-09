@@ -36,7 +36,7 @@
     launch-prefix="gdb -ex run --args"
     >
     <param name="experiment_file" value="$(find utexas_guidance_ros)/atrium_sim/exp.yaml" />  
-    <param name="problems_file" value="$(find utexas_guidance_ros)/atrium_sim/map_problems1.yaml" />
+    <param name="problems_file" value="$(find utexas_guidance_ros)/atrium_sim/map_problems0.yaml" />
     <param name="config_file" value="$(find utexas_guidance_ros)/atrium_sim/simulation_2.yaml" />
     <param name="only_problem_idx" value="$(arg problem_idx)" />
   </node>

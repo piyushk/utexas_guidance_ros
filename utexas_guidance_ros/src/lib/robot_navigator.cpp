@@ -67,8 +67,13 @@ namespace utexas_guidance_ros {
     for (int robot_idx = 0; robot_idx < robot_controller_.size(); ++robot_idx) {
       robot_controller_[robot_idx]->cancelAllGoals();
     }
+    utexas_guidance_msgs::UpdateGuidanceGui srv;
+    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+    for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
+      robot_gui_controller_[robot_idx]->call(srv);
+    }
     terminate_navigator_ = true;
-    //controller_thread_->join();
+    controller_thread_->join();
   }
 
   void RobotNavigator::start() {
@@ -125,6 +130,12 @@ namespace utexas_guidance_ros {
       system_state_.robots.push_back(rs);
     }
 
+    utexas_guidance_msgs::UpdateGuidanceGui srv;
+    srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+    for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
+      robot_gui_controller_[robot_idx]->call(srv);
+    }
+
     // Now that all robots are initialized, start the controller thread.
     controller_thread_.reset(new boost::thread(&RobotNavigator::runControllerThread, this));
 
@@ -167,19 +178,20 @@ namespace utexas_guidance_ros {
       return;
     }
 
-    episode_modification_mutex_.lock();
-    episode_completed_ = false;
-    terminate_episode_ = false;
-    episode_in_progress_ = true;
-    at_episode_start_ = true;
-    goal_node_id_ = goal->goal_node_id;
-    human_location_available_ = false;
-    system_reward_ = 0.0f;
-
-    episode_modification_mutex_.unlock();
+    {
+      boost::mutex::scoped_lock episode_modification_lock(episode_modification_mutex_);
+      episode_completed_ = false;
+      terminate_episode_ = false;
+      episode_in_progress_ = true;
+      at_episode_start_ = true;
+      goal_node_id_ = goal->goal_node_id;
+      human_location_available_ = false;
+      system_reward_ = 0.0f;
+    }
 
     while (ros::ok()) {
-      episode_modification_mutex_.lock();
+      boost::this_thread::sleep(boost::posix_time::milliseconds(100));
+      boost::mutex::scoped_lock episode_modification_lock(episode_modification_mutex_);
       if (as_->isPreemptRequested()) {
         terminate_episode_ = true;
         utexas_guidance_msgs::MultiRobotNavigationResult result;
@@ -195,8 +207,6 @@ namespace utexas_guidance_ros {
         as_->setSucceeded(result);
         break;
       }
-      episode_modification_mutex_.unlock();
-      boost::this_thread::sleep(boost::posix_time::milliseconds(100));
     }
 
   }
@@ -372,10 +382,6 @@ namespace utexas_guidance_ros {
                     sqrtf(human_robot_xdiff * human_robot_xdiff + human_robot_ydiff * human_robot_ydiff);
                   if (human_robot_distance <= 2.0f) {
                     next_loc = prev_action.node;
-                    // Clear the previous robot's GUI.
-                    // utexas_guidance_msgs::UpdateGuidanceGui srv;
-                    // srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
-                    // robot_gui_controller_[prev_action.robot_id]->call(srv);
                   }
                 }
               } else {
@@ -391,6 +397,14 @@ namespace utexas_guidance_ros {
               if (next_loc != system_state_.requests[0].loc_node ||
                   (system_state_.requests[0].wait_time_left != 0.0f && 
                    time_since_wait_start.total_milliseconds() > system_state_.requests[0].wait_time_left * 1000)) {
+
+                // Clear any previous displays.
+                utexas_guidance_msgs::UpdateGuidanceGui srv;
+                srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
+                for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
+                  robot_gui_controller_[robot_idx]->call(srv);
+                }
+
                 if (next_loc == goal_node_id_) {
                   ROS_INFO_STREAM("Reached destination!");
                   system_state_.requests[0].loc_node = next_loc;
@@ -630,7 +644,10 @@ namespace utexas_guidance_ros {
       }
 
       /* ROS_WARN_STREAM("5"); */
-      if (!episode_in_progress_) {
+      boost::posix_time::time_duration time_since_wait_start =
+        boost::posix_time::microsec_clock::local_time() - wait_action_start_time_;
+      if (!episode_in_progress_ ||
+          time_since_wait_start.total_milliseconds() > 20000) {
         boost::this_thread::sleep(boost::posix_time::milliseconds(1000.0f/controller_thread_frequency_));
       } else {
 
@@ -644,6 +661,7 @@ namespace utexas_guidance_ros {
       }
 
     }
+        ROS_INFO_NAMED("RobotNavigator", "Controller Thread exit...");
   }
 
   void RobotNavigator::sendRobotToDestination(int robot_idx, int destination, float orientation) {
