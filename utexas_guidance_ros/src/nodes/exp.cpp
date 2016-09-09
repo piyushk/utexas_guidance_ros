@@ -244,7 +244,8 @@ int main(int argc, char **argv) {
 
     // Wait for user to start experiment.
     displayMessageWithPause("Start next experiment?", gui_service);
-    displayMessage("Follow the robots' advice to reach the goal location!", gui_service);
+    //displayMessage("Follow the robots' advice to reach the goal location!", gui_service);
+    displayMessage("", gui_service);
 
     for (int robot_idx = 0; robot_idx < num_total_robots; ++robot_idx) {
       robot_pose_pubilshers[robot_idx].publish(getStartPoseWithCovariance(robot_idx));
