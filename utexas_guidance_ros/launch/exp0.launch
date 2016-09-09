@@ -33,7 +33,6 @@
 
   <!-- Launch the base robot navigator -->
   <node required="true" name="robot_navigator" pkg="utexas_guidance_ros" type="robot_navigator_exp"
-    launch-prefix="gdb -ex run --args"
     >
     <param name="experiment_file" value="$(find utexas_guidance_ros)/atrium_sim/exp.yaml" />  
     <param name="problems_file" value="$(find utexas_guidance_ros)/atrium_sim/map_problems0.yaml" />

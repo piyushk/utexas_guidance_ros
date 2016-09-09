@@ -499,19 +499,19 @@ namespace utexas_guidance_ros {
                 for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
                   if (system_state_.robots[robot_idx].help_destination != next_state.robots[robot_idx].help_destination) {
                     if (next_state.robots[robot_idx].help_destination == utexas_guidance::NONE) {
-                      if (!isRobotExactlyAt(next_state.robots[robot_idx], next_state.robots[robot_idx].tau_d)) {
+                      /* if (!isRobotExactlyAt(next_state.robots[robot_idx], next_state.robots[robot_idx].tau_d)) { */
 
                         robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
-                      } else {
-                        robot_command_status_[robot_idx] = AT_SERVICE_TASK_LOCATION;
-                      }
+                      // } else {
+                      //   robot_command_status_[robot_idx] = AT_SERVICE_TASK_LOCATION;
+                      // }
                     } else {
-                      if (!isRobotExactlyAt(next_state.robots[robot_idx], next_state.robots[robot_idx].help_destination)) {
+                      /* if (!isRobotExactlyAt(next_state.robots[robot_idx], next_state.robots[robot_idx].help_destination)) { */
 
                         robot_command_status_[robot_idx] = SERVICE_TASK_NAVIGATION_RESET;
-                      } else {
-                        robot_command_status_[robot_idx] = AT_HELP_DESTINATION_LOCATION;
-                      }
+                      // } else {
+                      //   robot_command_status_[robot_idx] = AT_HELP_DESTINATION_LOCATION;
+                      // }
                     }
                   }
                 }
