@@ -471,6 +471,7 @@ namespace utexas_guidance_ros {
                   utexas_guidance_msgs::UpdateGuidanceGui srv;
                   srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION;
                   utexas_guidance::Point3f ori_dest_pt = utexas_guidance::getLocationFromGraphId(action.node, graph_);
+                  srv.request.robot_location = robot_location_[action.robot_id];
                   srv.request.orientation_destination.position.x = ori_dest_pt.get<0>();
                   srv.request.orientation_destination.position.y = ori_dest_pt.get<1>();
                   robot_gui_controller_[action.robot_id]->call(srv);

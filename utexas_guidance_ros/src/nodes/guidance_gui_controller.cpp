@@ -3,6 +3,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <boost/thread/thread.hpp>
 #include <boost/foreach.hpp>
+#include <bwi_mapper/map_loader.h>
 #include <bwi_msgs/QuestionDialog.h>
 #include <fstream>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
@@ -23,6 +24,7 @@ std::vector<std::string> goal_names;
 std::vector<int> goal_graph_ids;
 boost::shared_ptr<boost::thread> episode_start_thread;
 boost::shared_ptr<actionlib::SimpleActionClient<utexas_guidance_msgs::MultiRobotNavigationAction> > mrn_client;
+cv::Mat map_image;
 ros::ServiceClient gui_service;
 
 std::string tf_prefix;
@@ -32,6 +34,7 @@ cv::Mat u_turn_image, up_arrow_image;
 geometry_msgs::Pose robot_location;
 
 bool use_rqt_visualizer = false;
+bool use_overhead_directions = true;
 
 void readGoalsFromFile(std::string &filename) {
 
@@ -150,6 +153,33 @@ void showArrowToDestination(const geometry_msgs::Pose &orientation_destination) 
 
 }
 
+void showArrowToDestination2(const geometry_msgs::Pose &robot_location,
+                             const geometry_msgs::Pose &orientation_destination) {
+
+  cv::Mat image;
+  image = map_image;
+
+  float height = image.rows, width = image.cols;
+  
+  float height_ratio = 119.0 / height;
+  float width_ratio = 159.0 / width;
+  float min_ratio = std::min(height_ratio, width_ratio);
+
+  cv::Mat resized_image;
+  cv::resize(image, resized_image,
+             cv::Size(0,0), min_ratio, min_ratio);
+
+  image = cv::Mat::zeros(120, 160, CV_8UC3);
+  int top = (image.rows - resized_image.rows) / 2;
+  int bottom = image.rows - resized_image.rows - top;
+  int left = (image.cols - resized_image.cols) / 2;
+  int right = image.cols - resized_image.cols - left;
+
+  cv::copyMakeBorder(resized_image, image, top, bottom, left, right, 
+                     cv::BORDER_CONSTANT, cv::Scalar(128,128,128));
+  displayImage(image);
+
+}
 void showAllDoneImage() {
   cv::Mat image = cv::Mat::zeros(120, 160, CV_8UC3);
   // if (!robot_name.empty()) {
@@ -212,8 +242,13 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
       system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
       break;
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION:
-      showArrowToDestination(request.orientation_destination);
-      displayMessage("Please move ahead in the indicated direction!");
+      if (!use_overhead_directions) {
+        showArrowToDestination(request.orientation_destination);
+        displayMessage("Please move ahead in the indicated direction!");
+      } else {
+        showArrowToDestination2(request.robot_location, request.orientation_destination);
+        displayMessage("Please walk to the location indicated by the arrow! (Red dot indicates your location, Black dot indicates the robot's location)");
+      }
       system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION;
       break;
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME:
@@ -280,6 +315,23 @@ int main(int argc, char **argv) {
   robot_name = tf_prefix.substr(0, tf_prefix.size() - 1);
   if (!robot_name.empty()) {
     robot_name[0] = toupper(robot_name[0]);
+  }
+
+  use_rqt_visualizer = false;
+  private_nh.getParam("use_rqt_visualizer", use_rqt_visualizer);
+    
+  use_overhead_directions = false;
+  private_nh.getParam("use_overhead_directions", use_overhead_directions);
+  if (use_overhead_directions) {
+    std::string map_file;
+    if (!private_nh.getParam("map_file", map_file)) {
+      ROS_FATAL("Map file parameter ~map_file not specified!");
+      return -1;
+    }
+    bwi_mapper::MapLoader mapper(map_file);
+    nav_msgs::OccupancyGrid map;
+    mapper.getMap(map);
+    mapper.drawMap(map_image, map);
   }
 
   private_nh.param<std::string>("up_arrow_image", up_arrow_image_file, images_dir + "/Up.png");

@@ -8,6 +8,7 @@ int32 SHOW_PLEASEWAIT = 5
 int32 SHOW_ALLDONE = 6
 
 int32 type
+geometry_msgs/Pose robot_location
 geometry_msgs/Pose orientation_destination
 
 ---
