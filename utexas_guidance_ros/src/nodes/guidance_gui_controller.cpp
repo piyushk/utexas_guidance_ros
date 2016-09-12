@@ -226,9 +226,9 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
       } else {
         clearImage();
         system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::ENABLE_EPISODE_START;
-        if (use_rqt_visualizer) {
-          episode_start_thread.reset(new boost::thread(&monitorEpisodeStartThread));
-        }
+        // if (use_rqt_visualizer) {
+        //   episode_start_thread.reset(new boost::thread(&monitorEpisodeStartThread));
+        // }
       }
       break;
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::DISABLE_EPISODE_START:
@@ -244,7 +244,7 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION:
       if (!use_overhead_directions) {
         showArrowToDestination(request.orientation_destination);
-        displayMessage("Please move ahead in the indicated direction!");
+        displayMessage("Please walk ahead in the indicated direction!");
       } else {
         showArrowToDestination2(request.robot_location, request.orientation_destination);
         displayMessage("Please walk to the location indicated by the arrow! (Red dot indicates your location, Black dot indicates the robot's location)");
@@ -253,17 +253,20 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
       break;
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME:
       showFollowMeImage();
-      displayMessage("Follow Me!");
+      /* displayMessage("Follow Me!"); */
+      displayMessage("");
       system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
       break;
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_PLEASEWAIT:
       showPleaseWaitImage();
-      displayMessage("Please wait!");
+      /* displayMessage("Please wait here!"); */
+      displayMessage("");
       system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
       break;
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ALLDONE:
       showAllDoneImage();
-      displayMessage("All Done!");
+      /* displayMessage("All Done!"); */
+      displayMessage("");
       system_state = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_FOLLOWME;
       break;
   };
@@ -283,20 +286,20 @@ int main(int argc, char **argv) {
   use_rqt_visualizer = false;
   private_nh.getParam("use_rqt_visualizer", use_rqt_visualizer);
     
-  if (use_rqt_visualizer) {
-    std::string goals_file_param_key;
-    std::string goals_file;
-    if (private_nh.searchParam("goals_file", goals_file_param_key)) {
-      if (!private_nh.getParam(goals_file_param_key, goals_file)) {
-        ROS_FATAL("Goals file parameter goals_file not specified!");
-        return -1;
-      }
-    } else {
-      ROS_FATAL("Goals file parameter goals_file not specified!");
-      return -1;
-    }
-    readGoalsFromFile(goals_file);
-  }
+  // if (use_rqt_visualizer) {
+  //   std::string goals_file_param_key;
+  //   std::string goals_file;
+  //   if (private_nh.searchParam("goals_file", goals_file_param_key)) {
+  //     if (!private_nh.getParam(goals_file_param_key, goals_file)) {
+  //       ROS_FATAL("Goals file parameter goals_file not specified!");
+  //       return -1;
+  //     }
+  //   } else {
+  //     ROS_FATAL("Goals file parameter goals_file not specified!");
+  //     return -1;
+  //   }
+  //   readGoalsFromFile(goals_file);
+  // }
 
   // Read images from parameters
   std::string up_arrow_image_file, u_turn_image_file;
@@ -347,7 +350,7 @@ int main(int argc, char **argv) {
   ros::ServiceServer enable_episode_start_service = nh.advertiseService("update_gui", &updateGui);
 
   if (use_rqt_visualizer) {
-    gui_service = nh.serviceClient<bwi_msgs::QuestionDialog>("question_dialog");
+    gui_service = nh.serviceClient<bwi_msgs::QuestionDialog>("/question_dialog");
     ROS_INFO_NAMED("guidance_gui_controller", "Waiting for segbot_gui service.");
     gui_service.waitForExistence();
     ROS_INFO_NAMED("guidance_gui_controller", "segbot_gui service found.");

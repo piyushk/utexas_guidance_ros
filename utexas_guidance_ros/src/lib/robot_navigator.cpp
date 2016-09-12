@@ -386,6 +386,27 @@ namespace utexas_guidance_ros {
                 }
               } else {
                 determineHumanTransitionalLocation(human_location_, system_state_.requests[0].loc_node, next_loc);
+
+                // If a robot is approaching next_loc, hold the transition.
+                for (int robot_idx = 0; robot_idx < system_state_.robots.size(); ++robot_idx) {
+                  if ((system_state_.robots[robot_idx].help_destination == next_loc &&
+                       robot_command_status_[robot_idx] == GOING_TO_HELP_DESTINATION_LOCATION) ||
+                      (system_state_.robots[robot_idx].tau_d == next_loc &&
+                       robot_command_status_[robot_idx] == GOING_TO_SERVICE_TASK_LOCATION)) {
+
+                    float human_robot_xdiff =
+                      robot_location_[robot_idx].position.x - human_location_.position.x;
+                    float human_robot_ydiff =
+                      robot_location_[robot_idx].position.y - human_location_.position.y;
+                    float human_robot_distance =
+                      sqrtf(human_robot_xdiff * human_robot_xdiff + human_robot_ydiff * human_robot_ydiff);
+
+                    if (human_robot_distance <= 5.0f) {
+                      // WAIT until the robot gets to the destination
+                      next_loc = system_state_.requests[0].loc_node;
+                    }
+                  }
+                }
               }
 
               /* ROS_WARN_STREAM("2c"); */
@@ -610,7 +631,7 @@ namespace utexas_guidance_ros {
             if (pause_robot_ == robot_idx) {
               boost::posix_time::time_duration time_since_wait_start =
                 boost::posix_time::microsec_clock::local_time() - wait_action_start_time_;
-              if (time_since_wait_start.total_milliseconds() > 1500) {
+              if (time_since_wait_start.total_milliseconds() > 10000) {
                 pause_robot_ = utexas_guidance::NONE;
                 utexas_guidance_msgs::UpdateGuidanceGui srv;
                 srv.request.type = utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_NOTHING;
@@ -630,7 +651,8 @@ namespace utexas_guidance_ros {
                 if (robot_command_status_[robot_idx] != AT_SERVICE_TASK_LOCATION &&
                     robot_command_status_[robot_idx] != GOING_TO_SERVICE_TASK_LOCATION) {
                   int destination = rs.tau_d;
-                  float orientation = utexas_guidance::getNodeAngle(rs.loc_u, rs.tau_d, graph_);
+                  /* float orientation = utexas_guidance::getNodeAngle(rs.loc_u, rs.tau_d, graph_); */
+                  float orientation = utexas_guidance::getNodeAngle(system_state_.requests[0].loc_node, rs.tau_d, graph_);
                   sendRobotToDestination(robot_idx, destination, orientation);
                   robot_command_status_[robot_idx] = GOING_TO_SERVICE_TASK_LOCATION;
                 }
@@ -690,7 +712,8 @@ namespace utexas_guidance_ros {
     // ROS_WARN_STREAM("Human's current location: " << current_pt.get<0>() << "," << current_pt.get<1>() <<
     //                 " and next_pt " << next_pt.get<0>() << "," << next_pt.get<1>());
     // ROS_WARN_STREAM("  Diff in magnitude: " << boost::geometry::distance(next_pt, human_pt));
-    if (boost::geometry::distance(next_pt, human_pt) <= boost::geometry::distance(current_pt, next_pt) / 3.0f) {
+    if ((boost::geometry::distance(next_pt, human_pt) <= boost::geometry::distance(current_pt, next_pt) / 3.0f) &&
+        (boost::geometry::distance(next_pt, human_pt) < 4.0f)) {
       next_loc = next_graph_id;
     } else {
       next_loc = current_loc;

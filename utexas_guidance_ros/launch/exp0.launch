@@ -4,7 +4,9 @@
   <arg name="problem_idx" default="-1" />
 
   <!-- start the simulation environment -->
-  <include file="$(find utexas_gdc)/launch/simulation_2.launch" />
+  <include file="$(find utexas_gdc)/launch/simulation_2.launch">
+    <arg name="gui" value="false" />
+  </include>
 
   <!-- launch the multi map server for the simulated world -->
   <node name="multi_level_map_server" pkg="multi_level_map_server" type="multi_level_map_server">
@@ -28,8 +30,12 @@
   </group>
   <node name="person_visualizer" pkg="rqt_gui" type="rqt_gui" args="--perspective-file $(find utexas_guidance_ros)/perspectives/person_interface.perspective">
     <remap from="/image" to="/person/camera/rgb/image_raw" />
-    <param name="font_size" value="16" />
+    <param name="font_size" value="24" />
   </node>
+
+  <node name="image_throttle" type="throttle" pkg="topic_tools" args="messages /person/camera/rgb/image_raw 1.0 /image_throttled" />
+  <node pkg="rosbag" type="record" name="rosbag_record" 
+    args="-o /home/piyushk/guidance_ws/video.0 /image_throttled /person/pose" />
 
   <!-- Launch the base robot navigator -->
   <node required="true" name="robot_navigator" pkg="utexas_guidance_ros" type="robot_navigator_exp"

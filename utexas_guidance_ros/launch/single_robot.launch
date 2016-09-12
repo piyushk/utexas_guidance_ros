@@ -61,7 +61,8 @@
     <node if="$(arg use_rqt_visualizer)" name="robot_visualizer" pkg="utexas_guidance_ros" type="rqt_gui_runner" args="ns $(arg ns)" />
 
     <node name="guidance_gui" type="guidance_gui_controller" pkg="utexas_guidance_ros">
-      <param name="use_rqt_visualizer" value="$(arg use_rqt_visualizer)" />
+      <!-- <param name="use_rqt_visualizer" value="$(arg use_rqt_visualizer)" /> -->
+      <param name="use_rqt_visualizer" value="true" />
     </node>
 
     <!-- launch the planner and reasoner -->

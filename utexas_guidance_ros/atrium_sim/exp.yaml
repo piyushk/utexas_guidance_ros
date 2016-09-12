@@ -13,7 +13,7 @@ planners:
   - name: utexas_planning::MCTS
     default_policy: utexas_guidance::SingleRobotSolver
     max_depth: 300
-    uct_reward_bound: 500
+    uct_reward_bound: 1000
     backup_lambda_value: 0.0
     model: 
       name: utexas_guidance::GuidanceModel
@@ -30,7 +30,7 @@ planners:
   - name: utexas_planning::MCTS
     default_policy: utexas_guidance::SingleRobotSolver
     max_depth: 300
-    uct_reward_bound: 500
+    uct_reward_bound: 1000
     backup_lambda_value: 0.0
     model: 
       name: utexas_guidance::GuidanceModel
