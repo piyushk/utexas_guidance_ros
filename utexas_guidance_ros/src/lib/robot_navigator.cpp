@@ -401,7 +401,7 @@ namespace utexas_guidance_ros {
                     float human_robot_distance =
                       sqrtf(human_robot_xdiff * human_robot_xdiff + human_robot_ydiff * human_robot_ydiff);
 
-                    if (human_robot_distance <= 5.0f) {
+                    if (human_robot_distance <= 3.0f) {
                       // WAIT until the robot gets to the destination
                       next_loc = system_state_.requests[0].loc_node;
                     }
@@ -712,8 +712,19 @@ namespace utexas_guidance_ros {
     // ROS_WARN_STREAM("Human's current location: " << current_pt.get<0>() << "," << current_pt.get<1>() <<
     //                 " and next_pt " << next_pt.get<0>() << "," << next_pt.get<1>());
     // ROS_WARN_STREAM("  Diff in magnitude: " << boost::geometry::distance(next_pt, human_pt));
-    if ((boost::geometry::distance(next_pt, human_pt) <= boost::geometry::distance(current_pt, next_pt) / 3.0f) &&
-        (boost::geometry::distance(next_pt, human_pt) < 4.0f)) {
+
+    float orientation_to_next_node = atan2f(next_pt.get<1>() - current_pt.get<1>(),
+                                            next_pt.get<0>() - current_pt.get<0>());
+    float distance_to_next_node = boost::geometry::distance(current_pt, next_pt);
+
+    utexas_guidance::Point3f v1(next_pt);
+    boost::geometry::subtract_point(v1, current_pt);
+    utexas_guidance::Point3f v2(human_pt);
+    boost::geometry::subtract_point(v2, current_pt);
+    float covered_distance = boost::geometry::dot_product(v1, v2) / distance_to_next_node;
+
+    float threshold_distance = std::max(0.7f * distance_to_next_node, distance_to_next_node - 3.0f);
+    if (covered_distance > threshold_distance) {
       next_loc = next_graph_id;
     } else {
       next_loc = current_loc;

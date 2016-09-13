@@ -4,7 +4,7 @@ models:
     initial_planning_time: 0.0
     graph_file: /home/piyushk/guidance_ws/src/utexas_guidance_ros/utexas_guidance_ros/atrium_sim/graph_2.yaml
     task_model_file: /home/piyushk/guidance_ws/src/utexas_guidance_ros/utexas_guidance_ros/atrium_sim/fixed_tasks.yaml
-    task_utility: 0.0
+    task_utility: 0.25
 planners:
   - name: utexas_guidance::SingleRobotSolver
     h0_wait_for_new_request: true
@@ -13,14 +13,14 @@ planners:
   - name: utexas_planning::MCTS
     default_policy: utexas_guidance::SingleRobotSolver
     max_depth: 300
-    uct_reward_bound: 1000
+    uct_reward_bound: 500
     backup_lambda_value: 0.0
     model: 
       name: utexas_guidance::GuidanceModel
       initial_num_requests: 1
       graph_file: /home/piyushk/guidance_ws/src/utexas_guidance_ros/utexas_guidance_ros/atrium_sim/graph_2.yaml
       task_model_file: /home/piyushk/guidance_ws/src/utexas_guidance_ros/utexas_guidance_ros/atrium_sim/fixed_tasks.yaml
-      task_utility: 0.0
+      task_utility: 0.25
       h0_wait_for_new_request: true
       h1_max_assigned_robots: -2
       h2_only_allow_adjacent_assignment: true
@@ -30,14 +30,14 @@ planners:
   - name: utexas_planning::MCTS
     default_policy: utexas_guidance::SingleRobotSolver
     max_depth: 300
-    uct_reward_bound: 1000
+    uct_reward_bound: 500
     backup_lambda_value: 0.0
     model: 
       name: utexas_guidance::GuidanceModel
       initial_num_requests: 1
       graph_file: /home/piyushk/guidance_ws/src/utexas_guidance_ros/utexas_guidance_ros/atrium_sim/graph_2.yaml
       task_model_file: /home/piyushk/guidance_ws/src/utexas_guidance_ros/utexas_guidance_ros/atrium_sim/fixed_tasks.yaml
-      task_utility: 0.0
+      task_utility: 0.25
       h0_wait_for_new_request: true
       h1_max_assigned_robots: -2
       h2_only_allow_adjacent_assignment: true

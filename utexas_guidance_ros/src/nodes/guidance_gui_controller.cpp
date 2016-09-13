@@ -4,6 +4,7 @@
 #include <boost/thread/thread.hpp>
 #include <boost/foreach.hpp>
 #include <bwi_mapper/map_loader.h>
+#include <bwi_mapper/map_utils.h>
 #include <bwi_msgs/QuestionDialog.h>
 #include <fstream>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
@@ -24,8 +25,10 @@ std::vector<std::string> goal_names;
 std::vector<int> goal_graph_ids;
 boost::shared_ptr<boost::thread> episode_start_thread;
 boost::shared_ptr<actionlib::SimpleActionClient<utexas_guidance_msgs::MultiRobotNavigationAction> > mrn_client;
-cv::Mat map_image;
 ros::ServiceClient gui_service;
+
+cv::Mat map_image;
+nav_msgs::MapMetaData map_info;
 
 std::string tf_prefix;
 std::string robot_name;
@@ -34,7 +37,35 @@ cv::Mat u_turn_image, up_arrow_image;
 geometry_msgs::Pose robot_location;
 
 bool use_rqt_visualizer = false;
-bool use_overhead_directions = true;
+bool use_overhead_directions = false;
+
+  void drawArrowOnImage(cv::Mat &image, const cv::Point2f &arrow_center, float orientation,
+                        const cv::Scalar &color, int size, int thickness) {
+
+    cv::Point arrow_start = arrow_center +
+      cv::Point2f(size * cosf(orientation + M_PI/2),
+                  size * sinf(orientation + M_PI/2));
+    cv::Point arrow_end = arrow_center -
+      cv::Point2f(size * cosf(orientation + M_PI/2),
+                  size * sinf(orientation + M_PI/2));
+
+    cv::line(image, arrow_start, arrow_end, color, thickness, CV_AA);
+
+    // http://mlikihazar.blogspot.com/2013/02/draw-arrow-opencv.html
+    cv::Point p(arrow_start), q(arrow_end);
+
+    //Draw the first segment
+    float angle = atan2f(p.y - q.y, p.x - q.x);
+    p.x = (int) (q.x + (0.1 * size - 1) * cos(angle + M_PI/4));
+    p.y = (int) (q.y + (0.1 * size - 1) * sin(angle + M_PI/4));
+    cv::line(image, p, q, color, thickness, CV_AA);
+
+    //Draw the second segment
+    p.x = (int) (q.x + (0.1 * size + 1) * cos(angle - M_PI/4));
+    p.y = (int) (q.y + (0.1 * size + 1) * sin(angle - M_PI/4));
+    cv::line(image, p, q, color, thickness, CV_AA);
+
+  }
 
 void readGoalsFromFile(std::string &filename) {
 
@@ -157,19 +188,71 @@ void showArrowToDestination2(const geometry_msgs::Pose &robot_location,
                              const geometry_msgs::Pose &orientation_destination) {
 
   cv::Mat image;
-  image = map_image;
 
+  bwi_mapper::Point2f robot_pt(robot_location.position.x, robot_location.position.y);
+  float yaw = tf::getYaw(robot_location.orientation);
+
+  bwi_mapper::Point2f dest_pt(orientation_destination.position.x, orientation_destination.position.y);
+  bwi_mapper::Point2f diff_pt = dest_pt - robot_pt;
+  float yaw2 = atan2f(diff_pt.y, diff_pt.x);
+
+  bwi_mapper::Point2f dest_proj_pt = robot_pt + 
+    cv::norm(dest_pt - robot_pt) * cosf(yaw2 - yaw) * bwi_mapper::Point2f(cosf(yaw), sinf(yaw));
+
+  bwi_mapper::Point2f robot_grid(bwi_mapper::toGrid(robot_pt, map_info));
+  bwi_mapper::Point2f dest_grid(bwi_mapper::toGrid(dest_pt, map_info));
+  bwi_mapper::Point2f dest_proj_grid(bwi_mapper::toGrid(dest_proj_pt, map_info));
+  
+  cv::RotatedRect rect;
+  rect.center = 0.5 * (robot_grid + dest_proj_grid);
+  rect.size = cv::Size(cv::norm(dest_proj_grid - robot_grid) * 1.2 * 4.0 / 3.0,
+                       cv::norm(dest_proj_grid - robot_grid) * 1.2);
+  rect.angle = 180. / M_PI * (atan2f((dest_proj_grid - robot_grid).y, (dest_proj_grid - robot_grid).x)) + 90;
+
+  cv::Mat map_image_mutable = map_image.clone();
+  cv::circle(map_image_mutable, robot_grid, 10, cv::Scalar(0,0,255), -1, CV_AA);
+
+  drawArrowOnImage(map_image_mutable, 
+                   0.5 * (robot_grid + dest_grid), 
+                   atan2f((dest_grid - robot_grid).y, (dest_grid - robot_grid).x) + M_PI/2,
+                   cv::Scalar(0,0,255), 
+                   cv::norm(dest_grid - robot_grid) * 0.5, 
+                   10);
+
+  // Got this code from somewhere, thought I've forgotten where.
+
+  // matrices we'll use
+  cv::Mat M, rotated, cropped;
+  // get angle and size from the bounding box
+  float angle = rect.angle;
+  cv::Size rect_size = rect.size;
+  // thanks to http://felix.abecassis.me/2011/10/opencv-rotation-deskewing/
+  if (rect.angle < -45.) {
+    angle += 90.0;
+    std::swap(rect_size.width, rect_size.height);
+  }
+  // get the rotation matrix
+  M = cv::getRotationMatrix2D(rect.center, angle, 1.0);
+  // perform the affine transformation
+  cv::warpAffine(map_image_mutable, rotated, M, map_image.size(), cv::INTER_CUBIC);
+
+  // crop the resulting image
+  cv::getRectSubPix(rotated, rect_size, rect.center, cropped);
+  cv::flip(cropped, image, 1);
+
+  // Get grid location and orientation_destination location.
+  // rotate image. get locations in this new image.  
   float height = image.rows, width = image.cols;
   
-  float height_ratio = 119.0 / height;
-  float width_ratio = 159.0 / width;
+  float height_ratio = 479.0 / height;
+  float width_ratio = 639.0 / width;
   float min_ratio = std::min(height_ratio, width_ratio);
 
   cv::Mat resized_image;
   cv::resize(image, resized_image,
              cv::Size(0,0), min_ratio, min_ratio);
 
-  image = cv::Mat::zeros(120, 160, CV_8UC3);
+  image = cv::Mat::zeros(480, 640, CV_8UC3);
   int top = (image.rows - resized_image.rows) / 2;
   int bottom = image.rows - resized_image.rows - top;
   int left = (image.cols - resized_image.cols) / 2;
@@ -326,6 +409,7 @@ int main(int argc, char **argv) {
   use_overhead_directions = false;
   private_nh.getParam("use_overhead_directions", use_overhead_directions);
   if (use_overhead_directions) {
+    // TODO: this won't work with the multiple floors.
     std::string map_file;
     if (!private_nh.getParam("map_file", map_file)) {
       ROS_FATAL("Map file parameter ~map_file not specified!");
@@ -334,6 +418,7 @@ int main(int argc, char **argv) {
     bwi_mapper::MapLoader mapper(map_file);
     nav_msgs::OccupancyGrid map;
     mapper.getMap(map);
+    mapper.getMapInfo(map_info);
     mapper.drawMap(map_image, map);
   }
 
