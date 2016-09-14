@@ -401,7 +401,7 @@ namespace utexas_guidance_ros {
                     float human_robot_distance =
                       sqrtf(human_robot_xdiff * human_robot_xdiff + human_robot_ydiff * human_robot_ydiff);
 
-                    if (human_robot_distance <= 3.0f) {
+                    if (human_robot_distance <= 5.0f) {
                       // WAIT until the robot gets to the destination
                       next_loc = system_state_.requests[0].loc_node;
                     }
@@ -723,7 +723,7 @@ namespace utexas_guidance_ros {
     boost::geometry::subtract_point(v2, current_pt);
     float covered_distance = boost::geometry::dot_product(v1, v2) / distance_to_next_node;
 
-    float threshold_distance = std::max(0.7f * distance_to_next_node, distance_to_next_node - 3.0f);
+    float threshold_distance = std::max(0.7f * distance_to_next_node, distance_to_next_node - 2.0f);
     if (covered_distance > threshold_distance) {
       next_loc = next_graph_id;
     } else {

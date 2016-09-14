@@ -327,7 +327,7 @@ bool updateGui(utexas_guidance_msgs::UpdateGuidanceGui::Request& request,
     case utexas_guidance_msgs::UpdateGuidanceGuiRequest::SHOW_ORIENTATION:
       if (!use_overhead_directions) {
         showArrowToDestination(request.orientation_destination);
-        displayMessage("Please walk ahead in the indicated direction!");
+        displayMessage("Please walk ahead by yourself in the indicated direction!");
       } else {
         showArrowToDestination2(request.robot_location, request.orientation_destination);
         displayMessage("Please walk to the location indicated by the arrow! (Red dot indicates your location, Black dot indicates the robot's location)");
